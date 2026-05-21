@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: typecheck / lint / test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "tool=pnpm" >> "$GITHUB_OUTPUT"
+          else
+            echo "tool=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.pm.outputs.tool == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node 22 (pnpm cache)
+        if: steps.pm.outputs.tool == 'pnpm'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Node 22 (npm cache)
+        if: steps.pm.outputs.tool == 'npm'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (pnpm)
+        if: steps.pm.outputs.tool == 'pnpm'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install (npm)
+        if: steps.pm.outputs.tool == 'npm'
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Typecheck
+        run: ${{ steps.pm.outputs.tool }} run typecheck
+
+      - name: Lint
+        run: ${{ steps.pm.outputs.tool }} run lint
+
+      - name: Test
+        run: ${{ steps.pm.outputs.tool }} run test

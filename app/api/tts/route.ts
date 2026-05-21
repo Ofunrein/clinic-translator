@@ -1,0 +1,70 @@
+// Track B2. POST /api/tts — Google Cloud TTS Chirp 3 HD synthesis.
+// Spec §4.2, §5.2 step 3-4, §7 (TTS failure → fallback voice).
+//
+// Body: { text, voice?, sessionId? }
+// Response: audio/mpeg stream + Cache-Control private 24h.
+// Errors:   JSON { code, message, retryable, trace_id } + 5xx status.
+
+import { NextResponse } from "next/server";
+import type { z } from "zod";
+import { requireUser } from "@/lib/api/auth";
+import { ttsBodySchema } from "@/lib/api/zod-schemas";
+import { synthesize } from "@/lib/google-tts";
+import { ValidationError, errorToResponse, newTraceId } from "@/lib/api/errors";
+import { recordAudit } from "@/lib/audit";
+
+export const runtime = "nodejs";
+
+export async function POST(req: Request): Promise<Response> {
+  const traceId = newTraceId();
+  try {
+    const user = await requireUser(req);
+
+    const json: unknown = await req.json().catch(() => null);
+    const parsed = ttsBodySchema.safeParse(json);
+    if (!parsed.success) {
+      throw new ValidationError(
+        "invalid tts body",
+        parsed.error.issues.map((i: z.ZodIssue) => ({
+          path: i.path.join("."),
+          message: i.message,
+        })),
+        { traceId },
+      );
+    }
+    const body = parsed.data;
+
+    const result = await synthesize({ text: body.text, voice: body.voice });
+
+    if (body.sessionId) {
+      // Audit the TTS read against the call so the access log is complete.
+      await recordAudit({
+        actorId: user.userId,
+        action: "view",
+        targetType: "call",
+        targetId: body.sessionId,
+        reason: result.fellBack ? "tts_fallback_voice" : null,
+      });
+    }
+
+    // Stream MP3. Cache headers honor spec §5.2 step 4 + §6 caching guidance.
+    return new Response(new Uint8Array(result.audio), {
+      status: 200,
+      headers: {
+        "content-type": "audio/mpeg",
+        "content-length": String(result.audio.byteLength),
+        "cache-control": "private, max-age=86400",
+        "x-tts-cache": result.cacheHit ? "hit" : "miss",
+        "x-tts-voice": result.voice,
+        "x-trace-id": traceId,
+      },
+    });
+  } catch (err) {
+    return errorToResponse(err);
+  }
+}
+
+// Defensive: GET is not part of the contract.
+export function GET(): Response {
+  return NextResponse.json({ code: "not_found", message: "use POST" }, { status: 405 });
+}

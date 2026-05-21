@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook. Runs lint-staged; lint-staged itself is configured
+# elsewhere (package.json or .lintstagedrc).
+. "$(dirname -- "$0")/_/husky.sh" 2>/dev/null || true
+
+if command -v pnpm >/dev/null 2>&1 && [ -f pnpm-lock.yaml ]; then
+  pnpm lint-staged
+else
+  npx --no-install lint-staged || npx lint-staged
+fi
