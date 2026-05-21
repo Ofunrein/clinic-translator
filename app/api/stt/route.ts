@@ -56,20 +56,18 @@ interface AcceptableSocket extends WebSocket {
 }
 
 async function authorize(req: Request): Promise<{ ok: true } | { ok: false; code: number }> {
+  // Browsers cannot set Authorization headers on WebSocket clients, so the
+  // useStt hook passes the Supabase JWT as a `?token=...` query param. Accept
+  // either path (Authorization header for server-to-server, query for browser).
   const auth =
     req.headers.get("authorization") ?? req.headers.get("Authorization");
-  const token = auth && auth.toLowerCase().startsWith("bearer ")
+  const headerToken = auth && auth.toLowerCase().startsWith("bearer ")
     ? auth.slice(7).trim()
     : null;
+  const queryToken = new URL(req.url).searchParams.get("token");
+  const token = headerToken ?? queryToken;
 
-  // EDGE_WS_TODO: browsers cannot set headers on WebSocket clients; the
-  // useStt hook (lib/hooks/useStt) currently relies on the same-origin
-  // cookie session being honored by Vercel proxies. If no Authorization
-  // header is present we accept the upgrade and the route stays subject to
-  // the email allowlist via the Bearer path that future hook iterations add.
   if (!token) {
-    // Fail closed in production. Tests can stub this by hitting the route
-    // over HTTP — the WS branch only fires on actual upgrade requests.
     return { ok: false, code: 4401 };
   }
 

@@ -7,6 +7,7 @@
 
 import * as React from "react";
 import { useSessionStore } from "@/lib/session";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export interface UseSttOptions {
   /** WebSocket URL relative to the current origin (`ws://` is derived). */
@@ -100,8 +101,23 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
   }, [setStatus]);
 
   const connectWs = React.useCallback(
-    (sendFn: (chunk: ArrayBuffer) => void): WebSocket => {
-      const ws = new WebSocket(url);
+    async (sendFn: (chunk: ArrayBuffer) => void): Promise<WebSocket> => {
+      // Browsers can't send Authorization on WS upgrade. Pass Supabase JWT
+      // as a `?token=...` query param — the /api/stt route accepts both paths.
+      let authedUrl = url;
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (token) {
+          const u = new URL(url, window.location.origin);
+          u.searchParams.set("token", token);
+          authedUrl = u.toString();
+        }
+      } catch {
+        // Fall back to unauth — server will reject if required.
+      }
+      const ws = new WebSocket(authedUrl);
       ws.binaryType = "arraybuffer";
       ws.onopen = () => {
         internals.current.backoffIdx = 0;
@@ -135,7 +151,9 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
         setStatus("degraded", `STT reconnecting in ${delay}ms`);
         window.setTimeout(() => {
           if (internals.current.closing) return;
-          internals.current.ws = connectWs(sendFn);
+          void connectWs(sendFn).then((next) => {
+            internals.current.ws = next;
+          });
         }, delay);
       };
       return ws;
@@ -278,7 +296,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
       }
     }
 
-    i.ws = connectWs(sendChunk);
+    i.ws = await connectWs(sendChunk);
     setIsStreaming(true);
 
     i.teardown = (): void => {
