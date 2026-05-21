@@ -7,7 +7,6 @@
 
 import * as React from "react";
 import { useSessionStore } from "@/lib/session";
-import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export interface UseSttOptions {
   /** WebSocket URL relative to the current origin (`ws://` is derived). */
@@ -102,17 +101,18 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
 
   const connectWs = React.useCallback(
     async (sendFn: (chunk: ArrayBuffer) => void): Promise<WebSocket> => {
-      // Browsers can't send Authorization on WS upgrade. Pass Supabase JWT
-      // as a `?token=...` query param — the /api/stt route accepts both paths.
+      // Browsers can't send Authorization on WS upgrade. Mint a short-lived
+      // JWT via POST /api/auth/token (NextAuth-signed) and pass as ?token=.
       let authedUrl = url;
       try {
-        const supabase = createSupabaseBrowserClient();
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (token) {
-          const u = new URL(url, window.location.origin);
-          u.searchParams.set("token", token);
-          authedUrl = u.toString();
+        const res = await fetch("/api/auth/token", { method: "POST" });
+        if (res.ok) {
+          const { token } = (await res.json()) as { token: string };
+          if (token) {
+            const u = new URL(url, window.location.origin);
+            u.searchParams.set("token", token);
+            authedUrl = u.toString();
+          }
         }
       } catch {
         // Fall back to unauth — server will reject if required.

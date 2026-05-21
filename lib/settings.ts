@@ -49,7 +49,13 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 function freshFromPreset(): ProviderConfig {
-  return applyPreset("balanced");
+  // Dev-mode default: the whole stack runs off OPENAI_API_KEY so engineers
+  // can boot the app with one secret. Production rows switch via the admin
+  // settings UI to `balanced`/`fast`/`accurate` (Bedrock + Deepgram + Polly
+  // or Google TTS). The dev-openai preset is persisted with
+  // `latencyMode: "balanced"` because the DB enum doesn't include the dev
+  // mode — only the provider blobs change.
+  return applyPreset("dev-openai");
 }
 
 function defaultRow(clinicId: string): typeof clinicSettings.$inferInsert {
@@ -181,7 +187,7 @@ export function rowToClinicBlob(row: ClinicSettings): ClinicConfigBlob {
   };
 }
 
-/** Read the active config; falls back to balanced preset on any error. */
+/** Read the active config; falls back to dev-openai preset on any error. */
 export async function getActiveProviderConfig(
   clinicId: string = DEFAULT_CLINIC_ID,
 ): Promise<ProviderConfig> {
@@ -189,7 +195,7 @@ export async function getActiveProviderConfig(
     const row = await getClinicSettings(clinicId);
     return rowToProviderConfig(row);
   } catch {
-    return LATENCY_PRESETS.balanced;
+    return LATENCY_PRESETS["dev-openai"];
   }
 }
 

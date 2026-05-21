@@ -5,7 +5,12 @@
 // lib/api/zod-schemas validate write-time and reject anything not in the
 // catalog.
 
+// `LatencyMode` mirrors the DB `latency_mode` enum and is the value
+// persisted on the `clinic_settings` row. The dev-only `dev-openai` preset
+// (see lib/providers/presets) is keyed under `LatencyPresetKey` and lives
+// purely in memory — it is never written to the DB column.
 export type LatencyMode = "fast" | "balanced" | "accurate";
+export type LatencyPresetKey = LatencyMode | "dev-openai";
 export type RealtimeMode = "text-middleman" | "s2s";
 
 // ----- STT -----
@@ -13,14 +18,16 @@ export type SttProvider =
   | { provider: "deepgram"; model: string; language?: string }
   | { provider: "aws-transcribe"; model: string; language?: string }
   | { provider: "google-speech"; model: string; language?: string }
-  | { provider: "whisper-azure"; model: string; language?: string };
+  | { provider: "whisper-azure"; model: string; language?: string }
+  | { provider: "openai"; model: string; language?: string };
 
 // ----- Translate -----
 export type TranslateProvider =
   | { provider: "bedrock"; model: string }
   | { provider: "vertex-gemini"; model: string }
   | { provider: "azure-openai"; model: string }
-  | { provider: "deepl"; model: string };
+  | { provider: "deepl"; model: string }
+  | { provider: "openai"; model: string };
 
 // ----- TTS -----
 export type TtsProvider =
@@ -28,13 +35,15 @@ export type TtsProvider =
   | { provider: "google-tts"; voice: string; engine: "chirp-3-hd" | "standard" }
   | { provider: "cartesia"; voice: string; engine: "sonic-2" }
   | { provider: "openai-tts"; voice: string; engine: "tts-1" | "tts-1-hd" }
-  | { provider: "elevenlabs"; voice: string; engine: "turbo-v2-5" };
+  | { provider: "elevenlabs"; voice: string; engine: "turbo-v2-5" }
+  | { provider: "openai"; voice: string; engine: "tts-1" | "tts-1-hd" };
 
 // ----- Suggest LLM (same shape as Translate) -----
 export type SuggestProvider =
   | { provider: "bedrock"; model: string }
   | { provider: "vertex-gemini"; model: string }
-  | { provider: "azure-openai"; model: string };
+  | { provider: "azure-openai"; model: string }
+  | { provider: "openai"; model: string };
 
 // ----- Composite per-clinic config blob -----
 export interface ProviderConfig {

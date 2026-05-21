@@ -12,7 +12,6 @@
 // 250→500→1000→2000→4000 ms (5 attempts). After the last attempt, we close
 // the client WS with code 1011.
 
-import { createServiceClient } from "@/lib/supabase/server";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import {
   DEEPGRAM_BACKOFF_MS,
@@ -22,6 +21,8 @@ import {
 import { translate as dispatchTranslate } from "@/lib/providers/clients";
 import { LATENCY_PRESETS } from "@/lib/providers/presets";
 import { findGlossaryHits } from "@/lib/medical-glossary";
+import { transcribeOpenai } from "@/lib/providers/clients/openai";
+import { jwtVerify } from "jose";
 
 export const runtime = "edge";
 
@@ -72,10 +73,10 @@ async function authorize(req: Request): Promise<{ ok: true } | { ok: false; code
   }
 
   try {
-    const svc = createServiceClient();
-    const { data, error } = await svc.auth.getUser(token);
-    if (error || !data.user) return { ok: false, code: 4401 };
-    const email = data.user.email ?? null;
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) return { ok: false, code: 4500 };
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    const email = typeof payload.email === "string" ? payload.email : null;
     if (!isEmailAllowed(email)) return { ok: false, code: 4403 };
     return { ok: true };
   } catch {
@@ -109,6 +110,162 @@ function buildDeepgramSocket(): WebSocket {
   // `Sec-WebSocket-Protocol: token, <KEY>`. This is the documented path for
   // browser-style WebSocket clients.
   return new WebSocket(DEEPGRAM_URL, ["token", apiKey]);
+}
+
+// DEV_STT_OPENAI_CHUNKED ------------------------------------------------
+// OpenAI Whisper has no native streaming endpoint. When the active STT
+// provider is `openai`, we buffer ~2s windows of 16 kHz mono PCM from the
+// browser, wrap each in a minimal WAV container, and POST to
+// /v1/audio/transcriptions. Each window produces a single `final` frame;
+// no `partial` frames are emitted. This is best-effort dev behavior — for
+// production-quality interim transcripts use Deepgram.
+
+const PCM_SAMPLE_RATE_HZ = 16000;
+const PCM_BYTES_PER_SAMPLE = 2;
+const PCM_CHANNELS = 1;
+const BATCH_WINDOW_MS = 2000;
+const BATCH_WINDOW_BYTES =
+  (PCM_SAMPLE_RATE_HZ * PCM_BYTES_PER_SAMPLE * PCM_CHANNELS * BATCH_WINDOW_MS) /
+  1000;
+// Don't ship windows smaller than ~150 ms — Whisper rejects very short
+// clips with a 400.
+const BATCH_MIN_BYTES = (PCM_SAMPLE_RATE_HZ * PCM_BYTES_PER_SAMPLE * 150) / 1000;
+
+function pickSttProvider(): "deepgram" | "openai" {
+  // Explicit override takes precedence so devs can force a mode.
+  const force = (process.env.STT_PROVIDER ?? "").toLowerCase();
+  if (force === "openai") return "openai";
+  if (force === "deepgram") return "deepgram";
+  // Auto: if DEEPGRAM_API_KEY missing but OPENAI_API_KEY present, use openai.
+  if (!process.env.DEEPGRAM_API_KEY && process.env.OPENAI_API_KEY) {
+    return "openai";
+  }
+  return "deepgram";
+}
+
+/** Wrap raw 16-bit mono PCM @ 16 kHz in a minimal WAV header. */
+function wrapPcmInWav(pcm: Uint8Array): Uint8Array {
+  const dataLen = pcm.byteLength;
+  const header = new ArrayBuffer(44);
+  const v = new DataView(header);
+  const writeStr = (off: number, s: string): void => {
+    for (let i = 0; i < s.length; i += 1) v.setUint8(off + i, s.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  v.setUint32(4, 36 + dataLen, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  v.setUint32(16, 16, true); // PCM fmt chunk size
+  v.setUint16(20, 1, true); // PCM format
+  v.setUint16(22, PCM_CHANNELS, true);
+  v.setUint32(24, PCM_SAMPLE_RATE_HZ, true);
+  v.setUint32(
+    28,
+    PCM_SAMPLE_RATE_HZ * PCM_CHANNELS * PCM_BYTES_PER_SAMPLE,
+    true,
+  );
+  v.setUint16(32, PCM_CHANNELS * PCM_BYTES_PER_SAMPLE, true);
+  v.setUint16(34, 8 * PCM_BYTES_PER_SAMPLE, true);
+  writeStr(36, "data");
+  v.setUint32(40, dataLen, true);
+  const out = new Uint8Array(44 + dataLen);
+  out.set(new Uint8Array(header), 0);
+  out.set(pcm, 44);
+  return out;
+}
+
+interface OpenaiBatchState {
+  client: WebSocket;
+  buffer: Uint8Array[];
+  bufferedBytes: number;
+  closing: boolean;
+  flushing: boolean;
+}
+
+async function flushOpenaiBatch(state: OpenaiBatchState): Promise<void> {
+  if (state.flushing || state.closing) return;
+  if (state.bufferedBytes < BATCH_MIN_BYTES) return;
+  state.flushing = true;
+  const merged = new Uint8Array(state.bufferedBytes);
+  let off = 0;
+  for (const chunk of state.buffer) {
+    merged.set(chunk, off);
+    off += chunk.byteLength;
+  }
+  state.buffer = [];
+  state.bufferedBytes = 0;
+
+  try {
+    const wav = wrapPcmInWav(merged);
+    // Edge runtime exposes Buffer via the node:buffer polyfill on Vercel;
+    // we coerce defensively for environments where it's missing.
+    const buf =
+      typeof Buffer !== "undefined"
+        ? Buffer.from(wav)
+        : (wav as unknown as Buffer);
+    const result = await transcribeOpenai({ audioBuffer: buf, lang: "es" });
+    const text = result.transcript.trim();
+    if (text.length > 0) {
+      safeSend(state.client, { type: "final", text });
+      // Kick translate in the background — same shape as the deepgram path.
+      void (async () => {
+        try {
+          const hits = findGlossaryHits(text, "mx");
+          const translateConfig = LATENCY_PRESETS["dev-openai"].translate;
+          const out = await dispatchTranslate({
+            text,
+            src: "es",
+            dst: "en",
+            dialect: "mx",
+            glossaryHits: hits,
+            config: translateConfig,
+          });
+          safeSend(state.client, {
+            type: "final",
+            text,
+            translation: out.translation,
+          });
+        } catch {
+          // Frontend will retry via /api/translate.
+        }
+      })();
+    }
+  } catch {
+    // Per-window failure is non-fatal in dev mode — the next window will retry.
+  } finally {
+    state.flushing = false;
+  }
+}
+
+function startOpenaiBatch(client: WebSocket): {
+  onMessage: (data: ArrayBuffer) => void;
+  close: () => void;
+} {
+  const state: OpenaiBatchState = {
+    client,
+    buffer: [],
+    bufferedBytes: 0,
+    closing: false,
+    flushing: false,
+  };
+  return {
+    onMessage: (data) => {
+      if (state.closing) return;
+      const chunk = new Uint8Array(data);
+      state.buffer.push(chunk);
+      state.bufferedBytes += chunk.byteLength;
+      if (state.bufferedBytes >= BATCH_WINDOW_BYTES) {
+        void flushOpenaiBatch(state);
+      }
+    },
+    close: () => {
+      state.closing = true;
+      // Best-effort: flush any remaining audio so the last utterance lands.
+      if (state.bufferedBytes >= BATCH_MIN_BYTES) {
+        void flushOpenaiBatch(state);
+      }
+    },
+  };
 }
 
 interface BridgeState {
@@ -225,6 +382,30 @@ export async function GET(req: Request): Promise<Response> {
   // socket transitions to OPEN.
   if (typeof serverSide.accept === "function") {
     serverSide.accept();
+  }
+
+  const provider = pickSttProvider();
+
+  if (provider === "openai") {
+    // DEV_STT_OPENAI_CHUNKED: bypass the Deepgram bridge entirely.
+    const batch = startOpenaiBatch(serverSide);
+    serverSide.addEventListener("message", (ev: MessageEvent) => {
+      const data = ev.data;
+      if (data instanceof ArrayBuffer) {
+        batch.onMessage(data);
+      }
+    });
+    serverSide.addEventListener("close", () => {
+      batch.close();
+    });
+    serverSide.addEventListener("error", () => {
+      batch.close();
+    });
+    const initWithSocket = {
+      status: 101,
+      webSocket: clientSide,
+    } as unknown as ResponseInit;
+    return new Response(null, initWithSocket);
   }
 
   const state: BridgeState = {

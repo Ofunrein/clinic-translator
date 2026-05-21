@@ -7,11 +7,13 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  primaryKey,
   customType,
   numeric,
   jsonb,
   integer,
 } from "drizzle-orm/pg-core";
+import type { AdapterAccountType } from "next-auth/adapters";
 
 // Postgres BYTEA <-> Node Buffer
 export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
@@ -237,3 +239,68 @@ export const clinicSettings = pgTable(
 
 export type ClinicSettings = typeof clinicSettings.$inferSelect;
 export type NewClinicSettings = typeof clinicSettings.$inferInsert;
+
+// ----- NextAuth (Auth.js) adapter tables -----
+// Distinct from `staff_users`. NextAuth owns identity + sessions; `staff_users`
+// owns clinic role + audit FKs. The `signIn` callback in lib/auth/config.ts
+// mirrors id+email between them on every sign-in.
+export const users = pgTable("users", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name"),
+  email: text("email").notNull(),
+  emailVerified: timestamp("email_verified", { withTimezone: true, mode: "date" }),
+  image: text("image"),
+});
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").$type<AdapterAccountType>().notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    refreshToken: text("refresh_token"),
+    accessToken: text("access_token"),
+    expiresAt: integer("expires_at"),
+    tokenType: text("token_type"),
+    scope: text("scope"),
+    idToken: text("id_token"),
+    sessionState: text("session_state"),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.provider, t.providerAccountId] }),
+  }),
+);
+
+export const sessions = pgTable("sessions", {
+  sessionToken: text("session_token").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: timestamp("expires", { withTimezone: true, mode: "date" }).notNull(),
+});
+
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.identifier, t.token] }),
+  }),
+);
+
+export type NextAuthUser = typeof users.$inferSelect;
+export type NewNextAuthUser = typeof users.$inferInsert;
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
+export type AuthSession = typeof sessions.$inferSelect;
+export type NewAuthSession = typeof sessions.$inferInsert;
+export type VerificationToken = typeof verificationTokens.$inferSelect;
+export type NewVerificationToken = typeof verificationTokens.$inferInsert;

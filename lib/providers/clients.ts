@@ -17,6 +17,7 @@ import {
   type SuggestStreamEvent as BedrockSuggestStreamEvent,
 } from "@/lib/anthropic";
 import { synthesize as synthesizeGoogle } from "@/lib/google-tts";
+import { findGlossaryHits, type Dialect } from "@/lib/medical-glossary";
 import type {
   SttProvider,
   TranslateProvider,
@@ -36,6 +37,12 @@ import {
   streamGoogleSpeech,
   streamWhisperAzure,
 } from "./clients/stt-stubs";
+import {
+  transcribeOpenai,
+  translateOpenai,
+  synthesizeOpenai,
+  suggestReplyOpenai,
+} from "./clients/openai";
 
 export type TranslateResult = Awaited<ReturnType<typeof translateBedrock>>;
 export type SuggestStreamEvent = BedrockSuggestStreamEvent;
@@ -61,6 +68,12 @@ export async function streamStt(
     case "deepgram":
       // Default path: route handler owns the bridge today; signal "passthrough".
       return null;
+    case "openai":
+      // DEV_STT_OPENAI_CHUNKED: openai has no streaming STT endpoint. The
+      // route owns the chunked-batch loop (buffer ~2s of audio → POST to
+      // /v1/audio/transcriptions). Dispatcher signals "passthrough" the
+      // same way the deepgram branch does.
+      return null;
     case "aws-transcribe":
       await streamAwsTranscribe(config);
       return null;
@@ -72,6 +85,31 @@ export async function streamStt(
       return null;
     default: {
       const _exhaustive: never = config;
+      void _exhaustive;
+      throw new Error("unknown stt provider");
+    }
+  }
+}
+
+// One-shot transcription for the chunked-batch dev path. The Edge STT route
+// buffers ~2s windows then calls this per window when `config.provider === 'openai'`.
+export async function transcribeOnce(args: {
+  audioBuffer: Buffer;
+  lang: "es" | "en";
+  config: SttProvider;
+}): Promise<{ transcript: string; isFinal: true; confidence?: number }> {
+  switch (args.config.provider) {
+    case "openai":
+      return transcribeOpenai({ audioBuffer: args.audioBuffer, lang: args.lang });
+    case "deepgram":
+    case "aws-transcribe":
+    case "google-speech":
+    case "whisper-azure":
+      throw new Error(
+        `transcribeOnce only supports openai (got ${args.config.provider}); use streamStt for streaming providers`,
+      );
+    default: {
+      const _exhaustive: never = args.config;
       void _exhaustive;
       throw new Error("unknown stt provider");
     }
@@ -97,6 +135,27 @@ export async function translate(args: DispatchTranslateArgs): Promise<TranslateR
       return translateAzure({ ...rest, model: config.model });
     case "deepl":
       return translateDeepL({ ...rest, model: config.model });
+    case "openai": {
+      const dialect: Dialect = rest.dialect ?? "all";
+      const hits = rest.glossaryHits ?? findGlossaryHits(rest.text, dialect);
+      const out = await translateOpenai({
+        text: rest.text,
+        src: rest.src,
+        dst: rest.dst,
+        glossaryHits: hits.map((h) => ({
+          en: h.term.en,
+          es: h.term.es,
+        })),
+      });
+      return {
+        translation: out.translation,
+        glossary_hits: hits.map((h) => ({
+          en: h.term.en,
+          es: h.term.es,
+          category: h.term.category,
+        })),
+      };
+    }
     default: {
       const _exhaustive: never = config;
       void _exhaustive;
@@ -126,6 +185,14 @@ export async function synthesize(
       return synthesizeOpenAi({ text, voice: config.voice, engine: config.engine });
     case "elevenlabs":
       return synthesizeElevenLabs({ text, voice: config.voice, engine: config.engine });
+    case "openai": {
+      const audio = await synthesizeOpenai({
+        text,
+        voice: config.voice,
+        model: config.engine,
+      });
+      return { audio, cacheHit: false, voice: config.voice, fellBack: false };
+    }
     default: {
       const _exhaustive: never = config;
       void _exhaustive;
@@ -162,6 +229,15 @@ export async function* suggestReply(
       return;
     case "azure-openai":
       for await (const ev of suggestAzure({ ...rest, model: config.model })) {
+        yield ev;
+      }
+      return;
+    case "openai":
+      for await (const ev of suggestReplyOpenai({
+        transcript: rest.transcript,
+        clinicContext: rest.clinicContext,
+        dialect: rest.dialect,
+      })) {
         yield ev;
       }
       return;

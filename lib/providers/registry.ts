@@ -58,6 +58,27 @@ const stt: Record<string, ProviderCatalogEntry> = {
     dialect: ["all"],
     notes: "Batch oriented; higher latency than Deepgram on streaming.",
   },
+  openai: {
+    key: "openai",
+    name: "OpenAI Whisper (dev)",
+    // Whisper-1 is priced per minute, not per 1k tokens; we surface the
+    // per-minute cost as the `costPer1k` field to keep the catalog shape
+    // stable. Consumers that care about the unit read the model `notes`.
+    models: [
+      {
+        id: "whisper-1",
+        label: "Whisper-1 (chunked batch, $0.006/min)",
+        costPer1k: 0.006,
+        baseLatencyMs: 600,
+      },
+    ],
+    voices: [],
+    engines: [],
+    baaTier: "enterprise-only",
+    requiresBaa: false,
+    dialect: ["mx", "cen", "car", "all"],
+    notes: "Dev-mode only. No native streaming — route batches ~2s windows.",
+  },
 };
 
 // ----- Translate catalog -----
@@ -130,6 +151,24 @@ const translate: Record<string, ProviderCatalogEntry> = {
     requiresBaa: true,
     dialect: ["all"],
     notes: "BAA only on enterprise plan; warn before selection on free/pro.",
+  },
+  openai: {
+    key: "openai",
+    name: "OpenAI (dev)",
+    models: [
+      {
+        id: "gpt-4o-mini",
+        label: "GPT-4o mini (in $0.15 / out $0.60 per 1M tokens)",
+        costPer1k: 0.00015,
+        baseLatencyMs: 500,
+      },
+    ],
+    voices: [],
+    engines: [],
+    baaTier: "enterprise-only",
+    requiresBaa: false,
+    dialect: ["all"],
+    notes: "Dev-mode only. Direct OpenAI (no BAA); swap to Bedrock for prod.",
   },
 };
 
@@ -268,6 +307,25 @@ const tts: Record<string, ProviderCatalogEntry> = {
     dialect: ["all"],
     notes: "No BAA available — selection blocked unless clinic acknowledges risk.",
   },
+  openai: {
+    key: "openai",
+    name: "OpenAI TTS (dev)",
+    models: [],
+    voices: [
+      {
+        id: "nova",
+        label: "Nova (tts-1, dev — best ES of the OpenAI voices)",
+        engine: "tts-1",
+        costPer1kChars: 0.015,
+        baseLatencyMs: 500,
+      },
+    ],
+    engines: [{ id: "tts-1", label: "tts-1" }],
+    baaTier: "enterprise-only",
+    requiresBaa: false,
+    dialect: ["all"],
+    notes: "Dev-mode only. No BAA on default OpenAI; for prod use Google or Polly.",
+  },
 };
 
 // ----- Suggest LLM catalog (same shape as translate) -----
@@ -275,6 +333,7 @@ const suggest: Record<string, ProviderCatalogEntry> = {
   bedrock: translate.bedrock,
   "vertex-gemini": translate["vertex-gemini"],
   "azure-openai": translate["azure-openai"],
+  openai: translate.openai,
 };
 
 export const PROVIDER_REGISTRY: ProviderRegistry = {
