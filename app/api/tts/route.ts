@@ -9,7 +9,8 @@ import { NextResponse } from "next/server";
 import type { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { ttsBodySchema } from "@/lib/api/zod-schemas";
-import { synthesize } from "@/lib/google-tts";
+import { synthesize as dispatchSynthesize } from "@/lib/providers/clients";
+import { getActiveProviderConfig } from "@/lib/settings";
 import { ValidationError, errorToResponse, newTraceId } from "@/lib/api/errors";
 import { recordAudit } from "@/lib/audit";
 
@@ -34,7 +35,15 @@ export async function POST(req: Request): Promise<Response> {
     }
     const body = parsed.data;
 
-    const result = await synthesize({ text: body.text, voice: body.voice });
+    // Resolve active TTS config; if the body specifies an override `voice`,
+    // we honor it on top of the active provider blob. The B3 frontend
+    // currently passes only `text`, so the active config wins by default.
+    const active = await getActiveProviderConfig();
+    const ttsConfig = body.voice
+      ? { ...active.tts, voice: body.voice }
+      : active.tts;
+
+    const result = await dispatchSynthesize({ text: body.text, config: ttsConfig });
 
     if (body.sessionId) {
       // Audit the TTS read against the call so the access log is complete.

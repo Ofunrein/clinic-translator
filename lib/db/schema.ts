@@ -8,6 +8,9 @@ import {
   index,
   uniqueIndex,
   customType,
+  numeric,
+  jsonb,
+  integer,
 } from "drizzle-orm/pg-core";
 
 // Postgres BYTEA <-> Node Buffer
@@ -54,6 +57,14 @@ export const auditTargetTypeEnum = pgEnum("audit_target_type", [
   "utterance",
   "staff_user",
   "glossary_term",
+]);
+
+// ----- AI assist (Track C1) -----
+export const suggestionOutcomeEnum = pgEnum("suggestion_outcome_enum", [
+  "accepted",
+  "edited",
+  "dismissed",
+  "none",
 ]);
 
 // ----- patients -----
@@ -120,6 +131,13 @@ export const utterances = pgTable(
     translationEnc: bytea("translation_enc"),
     ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
     audioStorageKey: text("audio_storage_key"),
+    // ----- AI-assist columns (Track C1) -----
+    suggestionTextEnc: bytea("suggestion_text_enc"),
+    suggestionConfidence: numeric("suggestion_confidence", { precision: 3, scale: 2 }),
+    suggestionOutcome: suggestionOutcomeEnum("suggestion_outcome")
+      .notNull()
+      .default("none"),
+    suggestionEscalate: boolean("suggestion_escalate").notNull().default(false),
   },
   (t) => ({
     callIdIdx: index("utterances_call_id_idx").on(t.callId),
@@ -170,3 +188,52 @@ export type GlossaryTerm = typeof glossaryTerms.$inferSelect;
 export type NewGlossaryTerm = typeof glossaryTerms.$inferInsert;
 export type AuditLogRow = typeof auditLog.$inferSelect;
 export type NewAuditLogRow = typeof auditLog.$inferInsert;
+
+// ----- clinic_settings (Track C2) -----
+// One row per clinic. Provider blobs live in jsonb columns and are
+// validated against the registry-aware zod schema in lib/api/zod-schemas
+// before write. Defaults reflect spec §6 (cheapest + fastest + effective).
+export const latencyModeEnum = pgEnum("latency_mode", [
+  "fast",
+  "balanced",
+  "accurate",
+]);
+export const realtimeModeEnum = pgEnum("realtime_mode", [
+  "text-middleman",
+  "s2s",
+]);
+export const dialectEnum = pgEnum("clinic_dialect", ["mx", "cen", "car", "other"]);
+
+export const clinicSettings = pgTable(
+  "clinic_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id").notNull(),
+    stt: jsonb("stt").notNull(),
+    translate: jsonb("translate").notNull(),
+    tts: jsonb("tts").notNull(),
+    suggest: jsonb("suggest").notNull(),
+    latencyMode: latencyModeEnum("latency_mode").notNull().default("balanced"),
+    realtimeMode: realtimeModeEnum("realtime_mode").notNull().default("text-middleman"),
+    aiAssistEnabled: boolean("ai_assist_enabled").notNull().default(true),
+    recordingEnabled: boolean("recording_enabled").notNull().default(false),
+    retentionDaysTranscripts: integer("retention_days_transcripts").notNull().default(2555),
+    retentionDaysAudio: integer("retention_days_audio").notNull().default(90),
+    dialect: dialectEnum("dialect").notNull().default("mx"),
+    clinicName: text("clinic_name").notNull().default("Riverside Family Clinic"),
+    clinicHours: text("clinic_hours")
+      .notNull()
+      .default("Monday–Friday, 8:00 AM to 5:00 PM Central"),
+    escalationRules: jsonb("escalation_rules").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").references(() => staffUsers.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => ({
+    clinicIdUq: uniqueIndex("clinic_settings_clinic_id_uq").on(t.clinicId),
+  }),
+);
+
+export type ClinicSettings = typeof clinicSettings.$inferSelect;
+export type NewClinicSettings = typeof clinicSettings.$inferInsert;

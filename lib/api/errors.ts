@@ -15,6 +15,7 @@ export type ErrorCode =
   | "translate_refused"
   | "tts_failed"
   | "stt_failed"
+  | "suggest_failed"
   | "internal";
 
 export interface ApiErrorJson {
@@ -139,6 +140,20 @@ export class STTError extends BaseApiError {
   ) {
     super(message, opts);
     this.name = "STTError";
+    this.status = opts?.status ?? 502;
+  }
+}
+
+// Track C1 — AI reply suggestion error.
+export class SuggestError extends BaseApiError {
+  readonly code = "suggest_failed" as const;
+  readonly status: number;
+  constructor(
+    message: string,
+    opts?: { retryable?: boolean; status?: number; traceId?: string; cause?: unknown },
+  ) {
+    super(message, opts);
+    this.name = "SuggestError";
     this.status = opts?.status ?? 502;
   }
 }

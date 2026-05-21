@@ -30,6 +30,7 @@ export interface SessionState {
   status: SessionStatus;
   statusReason: string | null;
   transcript: Utterance[];
+  suggestion: SuggestionState;
 
   setSessionId: (id: string | null) => void;
   setStatus: (s: SessionStatus, reason?: string) => void;
@@ -43,10 +44,31 @@ export interface SessionState {
   /** Attach a translation to an existing final patient utterance by id. */
   setTranslation: (utteranceId: string, translation: string) => void;
 
+  /** AI-assist (Track C1). */
+  setSuggestion: (s: Partial<SuggestionState>) => void;
+  clearSuggestion: () => void;
+
   reset: () => void;
   /** Hydrate from IndexedDB for crash recovery. No-op server-side. */
   hydrate: (sessionId: string) => Promise<void>;
 }
+
+/** Track C1 — AI suggestion state for the active staff reply. */
+export interface SuggestionState {
+  text: string;
+  confidence: number;
+  escalate: boolean;
+  isStreaming: boolean;
+  utteranceId: string | null;
+}
+
+export const EMPTY_SUGGESTION: SuggestionState = {
+  text: "",
+  confidence: 0,
+  escalate: false,
+  isStreaming: false,
+  utteranceId: null,
+};
 
 // ---------------------------------------------------------------------------
 // IndexedDB persistence layer (no external dep — `idb-keyval` not installed).
@@ -77,6 +99,7 @@ function openDb(): Promise<IDBDatabase> {
 interface PersistedShape {
   sessionId: string;
   transcript: Utterance[];
+  suggestion?: SuggestionState;
   savedAt: number;
 }
 
@@ -112,6 +135,8 @@ async function persist(state: SessionState): Promise<void> {
     sessionId: state.sessionId,
     // Keep finals only — partials are ephemeral.
     transcript: state.transcript.filter((u) => !u.isPartial),
+    // Persist a stable snapshot — never persist a mid-stream draft.
+    suggestion: state.suggestion.isStreaming ? EMPTY_SUGGESTION : state.suggestion,
     savedAt: Date.now(),
   };
   await idbSet(KEY_PREFIX + state.sessionId, payload);
@@ -128,6 +153,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   status: "idle",
   statusReason: null,
   transcript: [],
+  suggestion: EMPTY_SUGGESTION,
 
   setSessionId: (id) => set({ sessionId: id }),
 
@@ -205,12 +231,33 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
+  setSuggestion: (next) => {
+    const current = get().suggestion;
+    const merged: SuggestionState = { ...current, ...next };
+    set({ suggestion: merged });
+    // Only persist on stable transitions (stream completed or cleared) to
+    // avoid pounding IDB on every token.
+    if (!merged.isStreaming) {
+      void persist(get()).catch((err: unknown) => {
+        get().setStatus("degraded", `local save failed: ${stringifyErr(err)}`);
+      });
+    }
+  },
+
+  clearSuggestion: () => {
+    set({ suggestion: EMPTY_SUGGESTION });
+    void persist(get()).catch((err: unknown) => {
+      get().setStatus("degraded", `local save failed: ${stringifyErr(err)}`);
+    });
+  },
+
   reset: () =>
     set({
       sessionId: null,
       status: "idle",
       statusReason: null,
       transcript: [],
+      suggestion: EMPTY_SUGGESTION,
     }),
 
   hydrate: async (sessionId: string) => {
@@ -221,6 +268,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         set({
           sessionId: persisted.sessionId,
           transcript: persisted.transcript,
+          suggestion: persisted.suggestion ?? EMPTY_SUGGESTION,
         });
       } else {
         set({ sessionId });

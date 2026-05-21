@@ -93,3 +93,140 @@ export const createGlossaryBodySchema = z.object({
     .default("general"),
 });
 export type CreateGlossaryBody = z.infer<typeof createGlossaryBodySchema>;
+
+// ---- /api/suggest (Track C1) ----
+
+export const suggestRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+  lastUtteranceId: z.string().uuid(),
+});
+export type SuggestRequest = z.infer<typeof suggestRequestSchema>;
+
+export const suggestOutcomeSchema = z.object({
+  utteranceId: z.string().uuid(),
+  outcome: z.enum(["accepted", "edited", "dismissed"]),
+});
+export type SuggestOutcome = z.infer<typeof suggestOutcomeSchema>;
+
+// ---- /api/settings (Track C2) ----
+//
+// Provider configs are validated as discriminated unions at the type level
+// then cross-checked against the catalog at the route layer (lib/providers/
+// registry). The catalog check rejects models/voices the registry doesn't
+// list.
+
+export const latencyModeSchema = z.enum(["fast", "balanced", "accurate"]);
+export const realtimeModeSchema = z.enum(["text-middleman", "s2s"]);
+export const clinicDialectSchema = z.enum(["mx", "cen", "car", "other"]);
+
+export const sttProviderSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("deepgram"),
+    model: z.string().min(1).max(64),
+    language: z.string().min(2).max(8).optional(),
+  }),
+  z.object({
+    provider: z.literal("aws-transcribe"),
+    model: z.string().min(1).max(64),
+    language: z.string().min(2).max(8).optional(),
+  }),
+  z.object({
+    provider: z.literal("google-speech"),
+    model: z.string().min(1).max(64),
+    language: z.string().min(2).max(8).optional(),
+  }),
+  z.object({
+    provider: z.literal("whisper-azure"),
+    model: z.string().min(1).max(64),
+    language: z.string().min(2).max(8).optional(),
+  }),
+]);
+
+export const translateProviderSchema = z.discriminatedUnion("provider", [
+  z.object({ provider: z.literal("bedrock"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("vertex-gemini"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("azure-openai"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("deepl"), model: z.string().min(1).max(128) }),
+]);
+
+export const ttsProviderSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("polly"),
+    voice: z.string().min(1).max(64),
+    engine: z.enum(["neural", "generative", "long-form", "standard"]),
+  }),
+  z.object({
+    provider: z.literal("google-tts"),
+    voice: z.string().min(1).max(64),
+    engine: z.enum(["chirp-3-hd", "standard"]),
+  }),
+  z.object({
+    provider: z.literal("cartesia"),
+    voice: z.string().min(1).max(64),
+    engine: z.literal("sonic-2"),
+  }),
+  z.object({
+    provider: z.literal("openai-tts"),
+    voice: z.string().min(1).max(64),
+    engine: z.enum(["tts-1", "tts-1-hd"]),
+  }),
+  z.object({
+    provider: z.literal("elevenlabs"),
+    voice: z.string().min(1).max(64),
+    engine: z.literal("turbo-v2-5"),
+  }),
+]);
+
+export const suggestProviderSchema = z.discriminatedUnion("provider", [
+  z.object({ provider: z.literal("bedrock"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("vertex-gemini"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("azure-openai"), model: z.string().min(1).max(128) }),
+]);
+
+export const providerConfigSchema = z.object({
+  stt: sttProviderSchema,
+  translate: translateProviderSchema,
+  tts: ttsProviderSchema,
+  suggest: suggestProviderSchema,
+  latencyMode: latencyModeSchema,
+  realtimeMode: realtimeModeSchema,
+});
+export type ProviderConfigInput = z.infer<typeof providerConfigSchema>;
+
+export const escalationRulesSchema = z.object({
+  keywords: z.array(z.string().min(1).max(64)).max(64),
+  confidenceFloor: z.number().min(0).max(1),
+  categories: z.array(z.string().min(1).max(32)).max(16).optional(),
+});
+
+export const clinicSettingsSchema = z.object({
+  stt: sttProviderSchema,
+  translate: translateProviderSchema,
+  tts: ttsProviderSchema,
+  suggest: suggestProviderSchema,
+  latencyMode: latencyModeSchema,
+  realtimeMode: realtimeModeSchema,
+  aiAssistEnabled: z.boolean(),
+  recordingEnabled: z.boolean(),
+  retentionDaysTranscripts: z.number().int().min(1).max(36500),
+  retentionDaysAudio: z.number().int().min(0).max(36500),
+  dialect: clinicDialectSchema,
+  clinicName: z.string().min(1).max(120),
+  clinicHours: z.string().min(1).max(2000),
+  escalationRules: escalationRulesSchema,
+});
+export type ClinicSettingsInput = z.infer<typeof clinicSettingsSchema>;
+
+export const settingsPatchSchema = clinicSettingsSchema
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "patch must include at least one field",
+  });
+export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
+
+// ---- /api/tts/preview (Track C2) ----
+export const ttsPreviewBodySchema = z.object({
+  config: ttsProviderSchema,
+  text: z.string().min(1).max(400).optional(),
+});
+export type TtsPreviewBody = z.infer<typeof ttsPreviewBodySchema>;

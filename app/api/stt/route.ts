@@ -19,7 +19,8 @@ import {
   parseDeepgramFrame,
   pickTranscript,
 } from "@/lib/deepgram";
-import { translate } from "@/lib/anthropic";
+import { translate as dispatchTranslate } from "@/lib/providers/clients";
+import { LATENCY_PRESETS } from "@/lib/providers/presets";
 import { findGlossaryHits } from "@/lib/medical-glossary";
 
 export const runtime = "edge";
@@ -154,12 +155,17 @@ function startUpstream(state: BridgeState): void {
       void (async () => {
         try {
           const hits = findGlossaryHits(t.text, "mx");
-          const result = await translate({
+          // Edge runtime can't reach Postgres directly; fall back to the
+          // balanced preset as the documented behavior when the clinic
+          // settings row is unreachable. Translate provider stays Bedrock.
+          const translateConfig = LATENCY_PRESETS.balanced.translate;
+          const result = await dispatchTranslate({
             text: t.text,
             src: "es",
             dst: "en",
             dialect: "mx",
             glossaryHits: hits,
+            config: translateConfig,
           });
           safeSend(state.client, {
             type: "final",

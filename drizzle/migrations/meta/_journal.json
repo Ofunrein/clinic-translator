@@ -8,6 +8,20 @@
       "when": 1747699200000,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1747958400000,
+      "tag": "0001_ai_assist",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1747958500000,
+      "tag": "0002_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -17,7 +17,8 @@ import { db } from "@/lib/db/client";
 import { calls, utterances } from "@/lib/db/schema";
 import { encryptPHI } from "@/lib/crypto";
 import { recordAudit } from "@/lib/audit";
-import { translate } from "@/lib/anthropic";
+import { translate as dispatchTranslate } from "@/lib/providers/clients";
+import { getActiveProviderConfig } from "@/lib/settings";
 import { findGlossaryHits, type Dialect } from "@/lib/medical-glossary";
 import { requireUser } from "@/lib/api/auth";
 import { translateBodySchema } from "@/lib/api/zod-schemas";
@@ -62,12 +63,14 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     let result;
     try {
-      result = await translate({
+      const cfg = await getActiveProviderConfig();
+      result = await dispatchTranslate({
         text: body.text,
         src: body.src,
         dst: body.dst,
         dialect,
         glossaryHits: hits,
+        config: cfg.translate,
       });
     } catch (err) {
       if (err instanceof TranslateError && err.code === "translate_refused") {
