@@ -125,10 +125,7 @@ export async function translate(args: DispatchTranslateArgs): Promise<TranslateR
   const { config, ...rest } = args;
   switch (config.provider) {
     case "bedrock":
-      // Existing Bedrock client honors BEDROCK_MODEL_ID env; the dispatcher
-      // sets it for the duration of the call so we don't break the test
-      // seam in `lib/anthropic`.
-      return withEnv("BEDROCK_MODEL_ID", config.model, () => translateBedrock(rest));
+      return translateBedrock({ ...rest, modelId: config.model });
     case "vertex-gemini":
       return translateVertex({ ...rest, model: config.model });
     case "azure-openai":
@@ -212,13 +209,8 @@ export async function* suggestReply(
   const { config, ...rest } = args;
   switch (config.provider) {
     case "bedrock": {
-      const restore = setEnv("BEDROCK_MODEL_ID", config.model);
-      try {
-        for await (const ev of suggestReplyBedrock(rest)) {
-          yield ev;
-        }
-      } finally {
-        restore();
+      for await (const ev of suggestReplyBedrock({ ...rest, modelId: config.model })) {
+        yield ev;
       }
       return;
     }
@@ -246,30 +238,6 @@ export async function* suggestReply(
       void _exhaustive;
       throw new Error("unknown suggest provider");
     }
-  }
-}
-
-// ----- Helpers -----
-
-function setEnv(key: string, value: string): () => void {
-  const prev = process.env[key];
-  process.env[key] = value;
-  return () => {
-    if (prev === undefined) delete process.env[key];
-    else process.env[key] = prev;
-  };
-}
-
-async function withEnv<T>(
-  key: string,
-  value: string,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const restore = setEnv(key, value);
-  try {
-    return await fn();
-  } finally {
-    restore();
   }
 }
 

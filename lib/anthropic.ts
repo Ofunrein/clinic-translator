@@ -35,6 +35,7 @@ export interface TranslateArgs {
   dst: "es" | "en";
   dialect?: Dialect;
   glossaryHits?: GlossaryHit[];
+  modelId?: string;
 }
 
 export interface GlossaryHitOut {
@@ -196,7 +197,7 @@ export async function translate(args: TranslateArgs): Promise<TranslateResult> {
   const dialect: Dialect = args.dialect ?? "all";
   const hits = args.glossaryHits ?? findGlossaryHits(args.text, dialect);
 
-  const modelId = process.env.BEDROCK_MODEL_ID ?? DEFAULT_MODEL_ID;
+  const modelId = args.modelId ?? process.env.BEDROCK_MODEL_ID ?? DEFAULT_MODEL_ID;
 
   const requestBody: BedrockClaudeBody = {
     anthropic_version: "bedrock-2023-05-31",
@@ -305,6 +306,7 @@ export interface SuggestArgs {
   transcript: SuggestTurn[];
   clinicContext: ClinicConfig;
   dialect: Dialect;
+  modelId?: string;
 }
 
 export type SuggestStreamEvent =
@@ -411,7 +413,7 @@ interface BedrockClaudeStreamBody {
 export async function* suggestReply(
   args: SuggestArgs,
 ): AsyncIterable<SuggestStreamEvent> {
-  const modelId = process.env.BEDROCK_MODEL_ID ?? DEFAULT_MODEL_ID;
+  const modelId = args.modelId ?? process.env.BEDROCK_MODEL_ID ?? DEFAULT_MODEL_ID;
 
   const system = buildSuggestSystemPrompt({
     clinic: args.clinicContext,

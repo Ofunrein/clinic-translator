@@ -16,6 +16,8 @@
 // IMPORTANT: this list is conservative. Better to under-match than over-match —
 // false alarms desensitize the friend.
 
+import { scanNormalized } from "../text/scanner";
+
 export type UrgencyKeywordCategory =
   | "cardiac"
   | "respiratory"
@@ -103,50 +105,19 @@ export interface UrgencyMatch {
   matched: string;
 }
 
-function strip(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
 /**
  * Scan transcript text for urgency keywords. Returns offsets in the
  * *original* text (we walk a position-preserving stripped projection).
  */
 export function scanUrgencyKeywords(text: string): UrgencyMatch[] {
   if (!text) return [];
-  const stripped: string[] = [];
-  const offsetMap: number[] = [];
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i].toLowerCase();
-    const decomp = ch.normalize("NFD");
-    for (const c of decomp) {
-      const code = c.charCodeAt(0);
-      if (code >= 0x0300 && code <= 0x036f) continue;
-      stripped.push(c);
-      offsetMap.push(i);
-    }
-  }
-  const haystack = stripped.join("");
-  const hits: UrgencyMatch[] = [];
-  for (const k of URGENT_KEYWORDS) {
-    const needle = strip(k.pattern);
-    let from = 0;
-    while (from < haystack.length) {
-      const idx = haystack.indexOf(needle, from);
-      if (idx < 0) break;
-      const startOrig = offsetMap[idx] ?? idx;
-      const endOrigInclusive = offsetMap[idx + needle.length - 1] ?? idx + needle.length - 1;
-      hits.push({
-        keyword: k,
-        start: startOrig,
-        end: endOrigInclusive + 1,
-        matched: text.slice(startOrig, endOrigInclusive + 1),
-      });
-      from = idx + needle.length;
-    }
-  }
+  const raw = scanNormalized(text, URGENT_KEYWORDS, (k) => [k.pattern]);
+  const hits: UrgencyMatch[] = raw.map((m) => ({
+    keyword: m.item,
+    start: m.start,
+    end: m.end,
+    matched: m.matched,
+  }));
   hits.sort((a, b) => a.start - b.start);
   return hits;
 }

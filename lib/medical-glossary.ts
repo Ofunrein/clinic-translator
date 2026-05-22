@@ -3,6 +3,8 @@
 // source of truth in production; this module backs offline rendering of
 // glossary hits in the live transcript before the server response arrives.
 
+import { scanSubstrings } from "./text/scanner";
+
 export type Dialect = "mx" | "cen" | "car" | "all";
 export type GlossaryCategory = "drug" | "procedure" | "intake" | "other";
 
@@ -87,7 +89,6 @@ export const MEDICAL_GLOSSARY: GlossaryTerm[] = [
  */
 export function findGlossaryHits(text: string, dialect: Dialect = "all"): GlossaryHit[] {
   if (!text) return [];
-  const lower = text.toLowerCase();
 
   // Prioritize: dialect-specific terms first, then `all`.
   const specific = dialect === "all"
@@ -96,33 +97,18 @@ export function findGlossaryHits(text: string, dialect: Dialect = "all"): Glossa
   const fallback = MEDICAL_GLOSSARY.filter((t) => t.dialect === "all");
   const ordered = [...specific, ...fallback];
 
-  const hits: GlossaryHit[] = [];
   // Track claimed character ranges so dialect-specific wins over `all` on overlap.
   const claimed: Array<[number, number]> = [];
   const overlaps = (a: number, b: number): boolean =>
     claimed.some(([s, e]) => a < e && b > s);
 
-  for (const term of ordered) {
-    for (const needle of [term.en, term.es]) {
-      const n = needle.toLowerCase();
-      if (!n) continue;
-      let from = 0;
-      // Find every occurrence — long terms can repeat in the same utterance.
-      while (from <= lower.length - n.length) {
-        const idx = lower.indexOf(n, from);
-        if (idx === -1) break;
-        const end = idx + n.length;
-        if (!overlaps(idx, end)) {
-          hits.push({
-            term,
-            start: idx,
-            end,
-            matched: text.slice(idx, end),
-          });
-          claimed.push([idx, end]);
-        }
-        from = end;
-      }
+  const raw = scanSubstrings(text, ordered, (term) => [term.en, term.es]);
+
+  const hits: GlossaryHit[] = [];
+  for (const m of raw) {
+    if (!overlaps(m.start, m.end)) {
+      hits.push({ term: m.item, start: m.start, end: m.end, matched: m.matched });
+      claimed.push([m.start, m.end]);
     }
   }
 

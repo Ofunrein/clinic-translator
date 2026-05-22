@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { staffUsers, type StaffUser } from "@/lib/db/schema";
 import { auth } from "@/lib/auth/config";
+import { BaseApiError } from "@/lib/api/errors";
 
 export type StaffRole = StaffUser["role"];
 
@@ -21,14 +22,14 @@ export async function getUserRole(userId: string): Promise<StaffRole | null> {
   return row.role;
 }
 
-export class AuthorizationError extends Error {
+export class AuthorizationError extends BaseApiError {
+  readonly code: "unauthenticated" | "forbidden";
   readonly status: number;
-  readonly code: string;
   constructor(code: "unauthenticated" | "forbidden", message: string) {
-    super(message);
+    super(message, { retryable: false });
     this.name = "AuthorizationError";
-    this.status = code === "unauthenticated" ? 401 : 403;
     this.code = code;
+    this.status = code === "unauthenticated" ? 401 : 403;
   }
 }
 

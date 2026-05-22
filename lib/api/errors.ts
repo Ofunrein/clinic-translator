@@ -30,7 +30,7 @@ export function newTraceId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-abstract class BaseApiError extends Error {
+export abstract class BaseApiError extends Error {
   abstract readonly code: ErrorCode;
   abstract readonly status: number;
   readonly retryable: boolean;
@@ -191,27 +191,6 @@ export function errorToResponse(err: unknown): NextResponse<ApiErrorJson> {
       trace_id: traceId,
     };
     return NextResponse.json<ApiErrorJson>(body, { status: err.status });
-  }
-
-  // AuthorizationError from lib/auth/roles.ts
-  if (
-    err &&
-    typeof err === "object" &&
-    "code" in err &&
-    "status" in err &&
-    (err as { name?: string }).name === "AuthorizationError"
-  ) {
-    const code = (err as { code: string }).code;
-    const status = Number((err as { status: number }).status) || 401;
-    return NextResponse.json<ApiErrorJson>(
-      {
-        code: code === "forbidden" ? "forbidden" : "unauthenticated",
-        message: status === 401 ? "not signed in" : "forbidden",
-        retryable: false,
-        trace_id: traceId,
-      },
-      { status },
-    );
   }
 
   return NextResponse.json<ApiErrorJson>(
