@@ -62,5 +62,8 @@
   },
   "overrides": {
     "@aws-sdk/credential-provider-login": "3.972.41"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
