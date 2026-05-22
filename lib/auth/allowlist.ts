@@ -21,6 +21,7 @@ export function isEmailAllowed(email: string | null | undefined): boolean {
   if (entries.length === 0) return false;
 
   for (const entry of entries) {
+    if (entry === "*") return true;
     if (entry === normalized) return true;
     if (entry.startsWith("*@")) {
       const domain = entry.slice(2);
