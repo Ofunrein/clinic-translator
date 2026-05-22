@@ -45,3 +45,4 @@ drizzle/migrations/meta/_journal.json.tmp
 
 # Sentry
 .sentryclirc
+.vercel

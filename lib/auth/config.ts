@@ -11,6 +11,7 @@
 
 import NextAuth, { type NextAuthConfig, type Session, type User } from "next-auth";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 
@@ -59,6 +60,31 @@ export const authConfig: NextAuthConfig = {
         params: { access_type: "offline", prompt: "consent" },
       },
     }),
+    ...(process.env.NODE_ENV === "development"
+      ? [
+          Credentials({
+            id: "dev-bypass",
+            name: "Dev Login",
+            credentials: { email: { label: "Email", type: "email" } },
+            async authorize(credentials) {
+              const email = (credentials?.email as string | undefined)?.toLowerCase() ?? "";
+              if (!email || !isEmailAllowed(email)) return null;
+              // Upsert into NextAuth users table so database session strategy can create a session.
+              const existing = await db
+                .select({ id: users.id, name: users.name })
+                .from(users)
+                .where(eq(users.email, email))
+                .limit(1);
+              if (existing[0]) {
+                return { id: existing[0].id, email, name: existing[0].name ?? "Dev User" };
+              }
+              const id = crypto.randomUUID();
+              await db.insert(users).values({ id, email, name: "Dev User" });
+              return { id, email, name: "Dev User" };
+            },
+          }),
+        ]
+      : []),
   ],
   pages: {
     signIn: "/login",

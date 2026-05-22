@@ -1,60 +1,44 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/lib/auth/config";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 
-const PROTECTED_PREFIXES = ["/", "/calls", "/settings"] as const;
+// Cookie names NextAuth v5 uses (prefix depends on http vs https).
+const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"] as const;
+
+function getSessionToken(request: NextRequest): string | undefined {
+  for (const name of SESSION_COOKIES) {
+    const val = request.cookies.get(name)?.value;
+    if (val) return val;
+  }
+  return undefined;
+}
 
 function isProtectedPath(pathname: string): boolean {
   if (pathname === "/") return true;
-  // /api/* is protected except /api/auth/* and /api/health (handled inline).
   if (pathname.startsWith("/api/")) return true;
-  return PROTECTED_PREFIXES.some(
-    (p) => p !== "/" && (pathname === p || pathname.startsWith(`${p}/`)),
+  return ["/calls", "/settings"].some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // Public paths — let through without auth lookup.
+  // Public paths — let through unconditionally.
   if (
     pathname === "/api/health" ||
     pathname.startsWith("/api/auth/") ||
+    (pathname === "/api/dev-login" && process.env.NODE_ENV === "development") ||
     pathname.startsWith("/_next/") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/login"
   ) {
     return NextResponse.next();
   }
 
-  const session = await auth();
-  const userId = session?.userId ?? null;
-  const email = session?.user?.email ?? null;
+  const token = getSessionToken(request);
 
-  // Authed user hitting /login: bounce home.
-  if (pathname === "/login" && userId) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-
-  // Authed but email isn't on the clinic allowlist — fail closed.
-  if (userId && !isEmailAllowed(email) && pathname !== "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("error", "not_allowlisted");
-    // Best-effort signOut via the NextAuth signout endpoint on next click;
-    // clearing cookies here keeps the redirect tight.
-    const res = NextResponse.redirect(url);
-    for (const c of request.cookies.getAll()) {
-      if (c.name.startsWith("authjs.") || c.name.startsWith("__Secure-authjs.")) {
-        res.cookies.delete(c.name);
-      }
-    }
-    return res;
-  }
-
-  // Unauthed user hitting a protected route: send to login with `next` param.
-  if (!userId && isProtectedPath(pathname) && pathname !== "/login") {
+  // Unauthed user hitting a protected route → login.
+  if (!token && isProtectedPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
@@ -66,7 +50,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   matcher: [
-    // Run on everything except Next internals, static files, and the health probe.
     "/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|woff2?)).*)",
   ],
 };

@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { GoogleSignInButton } from "./google-signin-button";
+import { DevLoginForm } from "./dev-login-form";
 
 interface LoginPageProps {
   searchParams: Promise<{ error?: string; next?: string }>;
@@ -28,6 +29,9 @@ export default async function LoginPage(
       </CardHeader>
       <CardContent className="space-y-4">
         <GoogleSignInButton callbackUrl={callbackUrl} />
+        {process.env.NODE_ENV === "development" && (
+          <DevLoginForm callbackUrl={callbackUrl} />
+        )}
         {errorMessage ? (
           <p className="text-sm text-destructive" role="alert">
             {errorMessage}
