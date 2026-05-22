@@ -304,3 +304,15 @@ export type AuthSession = typeof sessions.$inferSelect;
 export type NewAuthSession = typeof sessions.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;
 export type NewVerificationToken = typeof verificationTokens.$inferInsert;
+
+// ----- user_credentials (email+password auth, no email confirmation) -----
+export const userCredentials = pgTable("user_credentials", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type UserCredential = typeof userCredentials.$inferSelect;
+export type NewUserCredential = typeof userCredentials.$inferInsert;

@@ -20,11 +20,13 @@ import {
   accounts,
   sessions,
   staffUsers,
+  userCredentials,
   users,
   verificationTokens,
   type StaffUser,
 } from "@/lib/db/schema";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
+import { verifyPassword } from "@/lib/auth/password";
 
 declare module "next-auth" {
   interface Session {
@@ -60,6 +62,38 @@ export const authConfig: NextAuthConfig = {
         params: { access_type: "offline", prompt: "consent" },
       },
     }),
+    Credentials({
+      id: "email-password",
+      name: "Email",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const email = (credentials?.email as string | undefined)?.toLowerCase() ?? "";
+        const password = (credentials?.password as string | undefined) ?? "";
+        if (!email || !password || !isEmailAllowed(email)) return null;
+
+        const userRow = await db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+        if (!userRow[0]) return null;
+
+        const cred = await db
+          .select({ passwordHash: userCredentials.passwordHash })
+          .from(userCredentials)
+          .where(eq(userCredentials.userId, userRow[0].id))
+          .limit(1);
+        if (!cred[0]) return null;
+
+        const ok = await verifyPassword(password, cred[0].passwordHash);
+        if (!ok) return null;
+
+        return { id: userRow[0].id, email, name: userRow[0].name ?? null };
+      },
+    }),
     ...(process.env.NODE_ENV === "development"
       ? [
           Credentials({
@@ -69,7 +103,6 @@ export const authConfig: NextAuthConfig = {
             async authorize(credentials) {
               const email = (credentials?.email as string | undefined)?.toLowerCase() ?? "";
               if (!email || !isEmailAllowed(email)) return null;
-              // Upsert into NextAuth users table so database session strategy can create a session.
               const existing = await db
                 .select({ id: users.id, name: users.name })
                 .from(users)
@@ -88,6 +121,7 @@ export const authConfig: NextAuthConfig = {
   ],
   pages: {
     signIn: "/login",
+    newUser: "/app",
     error: "/login",
   },
   callbacks: {

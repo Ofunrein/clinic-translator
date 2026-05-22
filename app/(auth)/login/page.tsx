@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { GoogleSignInButton } from "./google-signin-button";
 import { DevLoginForm } from "./dev-login-form";
+import { EmailPasswordForm } from "./email-password-form";
 
 interface LoginPageProps {
   searchParams: Promise<{ error?: string; next?: string }>;
@@ -18,17 +19,26 @@ export default async function LoginPage(
   props: LoginPageProps,
 ): Promise<React.JSX.Element> {
   const { error, next } = await props.searchParams;
-  const callbackUrl = next && next.startsWith("/") ? next : "/";
+  const callbackUrl = next && next.startsWith("/") ? next : "/app";
   const errorMessage = errorToMessage(error);
 
   return (
-    <Card>
+    <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Clinic Translator</CardTitle>
-        <CardDescription>Sign in with your clinic Google account.</CardDescription>
+        <CardDescription>Sign in to your clinic account.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <GoogleSignInButton callbackUrl={callbackUrl} />
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+        <EmailPasswordForm callbackUrl={callbackUrl} />
         {process.env.NODE_ENV === "development" && (
           <DevLoginForm callbackUrl={callbackUrl} />
         )}

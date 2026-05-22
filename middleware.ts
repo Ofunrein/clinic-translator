@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isEmailAllowed } from "@/lib/auth/allowlist";
 
-// Cookie names NextAuth v5 uses (prefix depends on http vs https).
 const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"] as const;
 
 function getSessionToken(request: NextRequest): string | undefined {
@@ -13,7 +11,7 @@ function getSessionToken(request: NextRequest): string | undefined {
 }
 
 function isProtectedPath(pathname: string): boolean {
-  if (pathname === "/") return true;
+  if (pathname === "/app" || pathname.startsWith("/app/")) return true;
   if (pathname.startsWith("/api/")) return true;
   return ["/calls", "/settings"].some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
@@ -30,14 +28,22 @@ export function middleware(request: NextRequest): NextResponse {
     (pathname === "/api/dev-login" && process.env.NODE_ENV === "development") ||
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico" ||
-    pathname === "/login"
+    pathname === "/login" ||
+    pathname === "/signup"
   ) {
     return NextResponse.next();
   }
 
   const token = getSessionToken(request);
 
-  // Unauthed user hitting a protected route → login.
+  // Authenticated user hitting the landing page → send to the app.
+  if (token && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/app";
+    return NextResponse.redirect(url);
+  }
+
+  // Unauthenticated user hitting a protected route → login.
   if (!token && isProtectedPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

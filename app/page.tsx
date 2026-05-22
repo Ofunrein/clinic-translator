@@ -1,216 +1,267 @@
-// Owned by Track B3. Spec §4.1 split-pane shell.
-"use client";
-
 import * as React from "react";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
-import { PatientPane } from "@/components/PatientPane";
-import { StaffPane } from "@/components/StaffPane";
-import { StatusPill } from "@/components/StatusPill";
-import { Button } from "@/components/ui/button";
-import { AudioContextProvider } from "@/lib/audio-context";
-import { useSessionStore } from "@/lib/session";
-import type { Urgency } from "@/components/UrgencyFlag";
+import Link from "next/link";
 
-interface SessionDto {
-  id: string;
-  startedAt: string;
-  urgency: "info" | "routine" | "urgent" | "emergency";
-}
-
-interface ApiError {
-  code: string;
-  message: string;
-}
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    let err: ApiError | null = null;
-    try {
-      err = (await res.json()) as ApiError;
-    } catch { /* noop */ }
-    throw new Error(err?.message ?? `request failed: ${res.status}`);
-  }
-  return (await res.json()) as T;
-}
-
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`request failed: ${res.status}`);
-  return (await res.json()) as T;
-}
-
-function ClinicTranslatorApp(): React.ReactElement {
-  const sessionId = useSessionStore((s) => s.sessionId);
-  const setSessionId = useSessionStore((s) => s.setSessionId);
-  const setStatus = useSessionStore((s) => s.setStatus);
-  const reset = useSessionStore((s) => s.reset);
-  const hydrate = useSessionStore((s) => s.hydrate);
-
-  const [urgency, setUrgency] = React.useState<Urgency>("routine");
-
-  // Hydrate from `?session=<id>` (spec §7 crash recovery).
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const resume = params.get("session");
-    if (resume) {
-      void hydrate(resume).then(() => {
-        setStatus("ready");
-      });
-    } else {
-      setStatus("idle");
-    }
-  }, [hydrate, setStatus]);
-
-  // Track network online/offline (spec §7).
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onOnline = (): void => {
-      const cur = useSessionStore.getState().status;
-      if (cur === "offline") setStatus("ready");
-    };
-    const onOffline = (): void => {
-      setStatus("offline", "browser is offline");
-    };
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    if (typeof navigator !== "undefined" && !navigator.onLine) onOffline();
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, [setStatus]);
-
-  const session = useQuery<SessionDto | null>({
-    queryKey: ["session", sessionId],
-    queryFn: async () => {
-      if (!sessionId) return null;
-      return getJson<SessionDto>(`/api/sessions/${sessionId}`);
-    },
-    enabled: Boolean(sessionId),
-    retry: 1,
-  });
-
-  const startCall = useMutation({
-    mutationFn: async () => {
-      return postJson<SessionDto>("/api/sessions", { urgency });
-    },
-    onSuccess: (s) => {
-      setSessionId(s.id);
-      setStatus("ready");
-      // Reflect in URL so refresh recovery works (spec §7).
-      const url = new URL(window.location.href);
-      url.searchParams.set("session", s.id);
-      window.history.replaceState(null, "", url.toString());
-    },
-    onError: (err: Error) => {
-      setStatus("degraded", `start call: ${err.message}`);
-    },
-  });
-
-  const endCall = useMutation({
-    mutationFn: async () => {
-      if (!sessionId) return null;
-      return postJson<SessionDto>(`/api/sessions/${sessionId}/end`, {});
-    },
-    onSettled: () => {
-      reset();
-      const url = new URL(window.location.href);
-      url.searchParams.delete("session");
-      window.history.replaceState(null, "", url.toString());
-    },
-  });
-
-  const onUrgencyChange = React.useCallback(
-    (u: Urgency) => {
-      setUrgency(u);
-      if (sessionId) {
-        // Best-effort PATCH; ignore failure (status pill will surface).
-        void fetch(`/api/sessions/${sessionId}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ urgency: u }),
-        }).catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : "patch failed";
-          setStatus("degraded", `urgency update: ${msg}`);
-        });
-      }
-    },
-    [sessionId, setStatus],
-  );
-
+export default function LandingPage(): React.JSX.Element {
   return (
-    <main className="flex h-screen flex-col">
-      <header className="flex items-center justify-between gap-4 border-b px-4 py-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Clinic Translator</h1>
-          {sessionId ? (
-            <span className="text-xs text-muted-foreground">
-              session {sessionId.slice(0, 8)}
-              {session.data?.startedAt ? ` · started ${new Date(session.data.startedAt).toLocaleTimeString()}` : ""}
-            </span>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-3">
-          <StatusPill voice="Achernar" />
-          {sessionId ? (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => endCall.mutate()}
-              disabled={endCall.isPending}
+    <div className="min-h-screen bg-white text-slate-900">
+      {/* Nav */}
+      <nav className="fixed top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-600 text-white text-sm font-bold">
+              CT
+            </div>
+            <span className="font-semibold text-slate-900">Clinic Translator</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
-              {endCall.isPending ? "Ending…" : "End Call"}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => startCall.mutate()}
-              disabled={startCall.isPending}
+              Sign in
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 transition-colors"
             >
-              {startCall.isPending ? "Starting…" : "Start Call"}
-            </Button>
-          )}
+              Get started
+            </Link>
+          </div>
         </div>
-      </header>
+      </nav>
 
-      <div className="grid flex-1 grid-cols-2 divide-x">
-        <PatientPane
-          urgency={urgency}
-          onUrgencyChange={onUrgencyChange}
-          autoStart={Boolean(sessionId)}
-        />
-        <StaffPane />
+      {/* Hero */}
+      <section className="relative overflow-hidden pt-32 pb-24">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-teal-50" />
+        <div className="absolute top-20 right-0 h-[500px] w-[500px] rounded-full bg-cyan-100/50 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-[300px] w-[300px] rounded-full bg-teal-100/40 blur-3xl" />
+        <div className="relative mx-auto max-w-6xl px-6 text-center">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-4 py-1.5 text-sm font-medium text-cyan-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
+            HIPAA-compliant · Real-time AI translation
+          </div>
+          <h1 className="mx-auto max-w-3xl text-5xl font-bold tracking-tight text-slate-900 sm:text-6xl">
+            Break language barriers{" "}
+            <span className="text-cyan-600">in your clinic</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-500">
+            Real-time speech translation between patients and clinical staff.
+            Powered by AI, built for healthcare, secure by design.
+          </p>
+          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link
+              href="/signup"
+              className="rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all hover:shadow-cyan-300"
+            >
+              Start free
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-xl border border-slate-200 bg-white px-8 py-3.5 text-base font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            >
+              Sign in →
+            </Link>
+          </div>
+
+          {/* Mock UI card */}
+          <div className="mx-auto mt-16 max-w-3xl">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-200">
+              <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-5 py-3.5">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                <div className="h-3 w-3 rounded-full bg-green-400" />
+                <span className="ml-3 text-xs text-slate-400">Clinic Translator — live session</span>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-slate-100">
+                <div className="p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Patient · Spanish</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+                      "Me duele mucho el pecho desde ayer por la noche."
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+                      "También tengo dificultad para respirar."
+                    </div>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-cyan-500" />
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Staff · English</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5 text-sm text-slate-700">
+                      "My chest has been hurting a lot since last night."
+                    </div>
+                    <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5 text-sm text-slate-700">
+                      "I'm also having difficulty breathing."
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50/50 px-5 py-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100">
+                  <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                </div>
+                <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">Urgent — possible cardiac symptoms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Built for clinical environments</h2>
+            <p className="mt-4 text-slate-500">Everything your team needs to communicate clearly with every patient.</p>
+          </div>
+          <div className="mt-16 grid gap-8 sm:grid-cols-3">
+            <FeatureCard
+              icon="🎙️"
+              title="Real-time translation"
+              description="Speech is transcribed and translated in under 800ms. Patients speak naturally — staff read instantly."
+            />
+            <FeatureCard
+              icon="🔒"
+              title="HIPAA compliant"
+              description="All PHI is AES-256-GCM encrypted at rest. Every access is logged in the full audit trail."
+            />
+            <FeatureCard
+              icon="⚡"
+              title="Urgency detection"
+              description="AI automatically flags urgent phrases — pain severity, breathing issues, allergic reactions — so nothing is missed."
+            />
+            <FeatureCard
+              icon="📋"
+              title="Medical glossary"
+              description="A built-in glossary of medical terms, medications, and procedures keeps translations accurate."
+            />
+            <FeatureCard
+              icon="🌐"
+              title="Spanish · English"
+              description="Optimized for Spanish/English bilingual clinics with dialect-aware translation (Mx, Caribbean, Central American)."
+            />
+            <FeatureCard
+              icon="🔄"
+              title="Session recovery"
+              description="Crash mid-call? The session auto-recovers from the URL so nothing is lost during a patient interaction."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="bg-slate-50 py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">How it works</h2>
+            <p className="mt-4 text-slate-500">Three steps from open to done.</p>
+          </div>
+          <div className="mt-16 grid gap-8 sm:grid-cols-3">
+            <StepCard
+              number="1"
+              title="Start a call"
+              description="Click Start Call. The system creates an encrypted session and begins listening."
+            />
+            <StepCard
+              number="2"
+              title="Speak naturally"
+              description="Patient speaks in Spanish, staff in English. Each side sees the other's words translated in real time."
+            />
+            <StepCard
+              number="3"
+              title="End and review"
+              description="End the call when done. The full session transcript is securely stored and audited."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-24">
+        <div className="mx-auto max-w-3xl px-6 text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Ready to improve patient communication?
+          </h2>
+          <p className="mt-4 text-slate-500">
+            Sign up with your clinic email — no credit card required.
+          </p>
+          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link
+              href="/signup"
+              className="rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all"
+            >
+              Create free account
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-xl border border-slate-200 px-8 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-100 py-8">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded bg-cyan-600 text-white text-xs font-bold">
+                CT
+              </div>
+              <span className="text-sm font-medium text-slate-600">Clinic Translator</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              Authorized clinic staff only. All access is logged and audited.
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+      <div className="mb-4 text-3xl">{icon}</div>
+      <h3 className="mb-2 font-semibold text-slate-900">{title}</h3>
+      <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+function StepCard({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}): React.JSX.Element {
+  return (
+    <div className="relative rounded-2xl bg-white border border-slate-100 p-6 shadow-sm">
+      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-600 text-white font-bold text-lg">
+        {number}
       </div>
-    </main>
-  );
-}
-
-export default function Page(): React.ReactElement {
-  // QueryClient is owned here so SSR doesn't share clients across requests.
-  const [client] = React.useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 },
-        },
-      }),
-  );
-  return (
-    <QueryClientProvider client={client}>
-      <AudioContextProvider>
-        <ClinicTranslatorApp />
-      </AudioContextProvider>
-    </QueryClientProvider>
+      <h3 className="mb-2 font-semibold text-slate-900">{title}</h3>
+      <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+    </div>
   );
 }

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const ct = req.headers.get("content-type") ?? "";
   let email = "";
-  let callbackUrl = req.nextUrl.searchParams.get("callbackUrl") ?? "/";
+  let callbackUrl = req.nextUrl.searchParams.get("callbackUrl") ?? "/app";
   if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
     const form = await req.formData();
     email = ((form.get("email") as string | null) ?? "").toLowerCase().trim();
