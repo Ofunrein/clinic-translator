@@ -1,0 +1,4 @@
+{
+  "installCommand": "npm ci --prefer-offline --no-audit",
+  "buildCommand": "npm run build"
+}

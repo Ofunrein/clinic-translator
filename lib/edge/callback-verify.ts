@@ -6,8 +6,7 @@
 //   * extractCallbackNumber(text) — returns the *most likely* callback number
 //   * spanishReadback(digits)     — produces the ES read-back sentence the
 //                                    UI synthesizes via TTS
-//   * persistCallbackNumber       — hook into the patient record (encrypted
-//                                    via lib/crypto). Server-side only.
+//   * persistCallbackNumber       — see `lib/edge/callback-persist.ts` (server)
 //
 // The widget itself lives in `components/CallbackVerifyCard.tsx`.
 
@@ -104,69 +103,6 @@ export function spanishReadback(digits: string): string {
     )
     .join(", ");
   return `Su número de teléfono es ${spoken}, ¿es correcto?`;
-}
-
-// ---------------------------------------------------------------------------
-// Server-side persistence helper.
-//
-// Encrypts the verified number with `lib/crypto` and writes it onto the
-// patient row. Lives in this file so a single import surface covers both
-// client and server. Lazy-imports DB modules so client bundles stay small.
-// ---------------------------------------------------------------------------
-
-export interface PersistInput {
-  patientId: string;
-  e164: string;
-  /** Sanitized actor info for audit. Never includes PHI. */
-  actor: { staffUserId: string | null; ipAddr?: string };
-  /** Trace id for cross-log correlation. */
-  traceId: string;
-}
-
-export interface PersistResult {
-  ok: boolean;
-  reason?: string;
-}
-
-export async function persistCallbackNumber(
-  input: PersistInput,
-): Promise<PersistResult> {
-  // Server-only path. Importing `crypto.ts` on the client would still work
-  // because it uses webcrypto, but `db/client` is server-only.
-  if (typeof window !== "undefined") {
-    return { ok: false, reason: "client-side persist not allowed" };
-  }
-  if (!/^\+\d{8,15}$/.test(input.e164)) {
-    return { ok: false, reason: "invalid e164" };
-  }
-  try {
-    const [{ db }, { patients, auditLog }, { encryptPHI }, { eq }] =
-      await Promise.all([
-        import("@/lib/db/client"),
-        import("@/lib/db/schema"),
-        import("@/lib/crypto"),
-        import("drizzle-orm"),
-      ]);
-    const enc = await encryptPHI(input.e164);
-    await db
-      .update(patients)
-      .set({ callbackPhoneEnc: enc, lastSeenAt: new Date() })
-      .where(eq(patients.id, input.patientId));
-    await db.insert(auditLog).values({
-      actorId: input.actor.staffUserId,
-      action: "edit",
-      targetType: "patient",
-      targetId: input.patientId,
-      ipAddr: input.actor.ipAddr ?? null,
-      reason: `callback_verified:${input.traceId}`,
-    });
-    return { ok: true };
-  } catch (err: unknown) {
-    return {
-      ok: false,
-      reason: err instanceof Error ? err.message : "persist failed",
-    };
-  }
 }
 
 // Re-export for tests and the verify card.

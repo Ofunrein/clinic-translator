@@ -3,7 +3,6 @@
 // PHI must never be embedded in `message` — callers pass sanitized text only.
 
 import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
 
 export type ErrorCode =
   | "unauthenticated"
@@ -26,7 +25,9 @@ export interface ApiErrorJson {
 }
 
 export function newTraceId(): string {
-  return randomBytes(8).toString("hex");
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 abstract class BaseApiError extends Error {
@@ -61,9 +62,6 @@ export class ForbiddenError extends BaseApiError {
     this.name = "ForbiddenError";
   }
 }
-
-// Re-export the existing AuthorizationError type for callers that catch it.
-export { AuthorizationError } from "@/lib/auth/roles";
 
 export class ValidationError extends BaseApiError {
   readonly code = "validation" as const;

@@ -927,6 +927,3 @@ function RetentionCard({
     </Card>
   );
 }
-
-// Re-export sub-component glossary editor table for tabs.
-export { GlossaryEditor } from "./_glossary";

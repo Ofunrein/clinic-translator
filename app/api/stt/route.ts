@@ -18,10 +18,8 @@ import {
   parseDeepgramFrame,
   pickTranscript,
 } from "@/lib/deepgram";
-import { translate as dispatchTranslate } from "@/lib/providers/clients";
-import { LATENCY_PRESETS } from "@/lib/providers/presets";
 import { findGlossaryHits } from "@/lib/medical-glossary";
-import { transcribeOpenai } from "@/lib/providers/clients/openai";
+import { transcribeOpenai, translateOpenai } from "@/lib/providers/clients/openai";
 import { jwtVerify } from "jose";
 
 export const runtime = "edge";
@@ -56,7 +54,9 @@ interface AcceptableSocket extends WebSocket {
   accept?(): void;
 }
 
-async function authorize(req: Request): Promise<{ ok: true } | { ok: false; code: number }> {
+async function authorize(
+  req: Request,
+): Promise<{ ok: true; token: string } | { ok: false; code: number }> {
   // Browsers cannot set Authorization headers on WebSocket clients, so the
   // useStt hook passes the Supabase JWT as a `?token=...` query param. Accept
   // either path (Authorization header for server-to-server, query for browser).
@@ -78,9 +78,34 @@ async function authorize(req: Request): Promise<{ ok: true } | { ok: false; code
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
     const email = typeof payload.email === "string" ? payload.email : null;
     if (!isEmailAllowed(email)) return { ok: false, code: 4403 };
-    return { ok: true };
+    return { ok: true, token };
   } catch {
     return { ok: false, code: 4401 };
+  }
+}
+
+/** Edge-safe translate: delegate to the Node /api/translate route (Bedrock, etc.). */
+async function translateViaApi(args: {
+  origin: string;
+  token: string;
+  text: string;
+  src: "es" | "en";
+  dst: "es" | "en";
+}): Promise<string | null> {
+  try {
+    const res = await fetch(`${args.origin}/api/translate`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${args.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: args.text, src: args.src, dst: args.dst }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { translation?: string };
+    return typeof data.translation === "string" ? data.translation : null;
+  } catch {
+    return null;
   }
 }
 
@@ -211,14 +236,14 @@ async function flushOpenaiBatch(state: OpenaiBatchState): Promise<void> {
       void (async () => {
         try {
           const hits = findGlossaryHits(text, "mx");
-          const translateConfig = LATENCY_PRESETS["dev-openai"].translate;
-          const out = await dispatchTranslate({
+          const out = await translateOpenai({
             text,
             src: "es",
             dst: "en",
-            dialect: "mx",
-            glossaryHits: hits,
-            config: translateConfig,
+            glossaryHits: hits.map((h) => ({
+              en: h.term.en,
+              es: h.term.es,
+            })),
           });
           safeSend(state.client, {
             type: "final",
@@ -273,6 +298,8 @@ interface BridgeState {
   upstream: WebSocket | null;
   backoffIdx: number;
   closing: boolean;
+  origin: string;
+  token: string;
 }
 
 function startUpstream(state: BridgeState): void {
@@ -309,24 +336,20 @@ function startUpstream(state: BridgeState): void {
 
       void (async () => {
         try {
-          const hits = findGlossaryHits(t.text, "mx");
-          // Edge runtime can't reach Postgres directly; fall back to the
-          // balanced preset as the documented behavior when the clinic
-          // settings row is unreachable. Translate provider stays Bedrock.
-          const translateConfig = LATENCY_PRESETS.balanced.translate;
-          const result = await dispatchTranslate({
+          const translation = await translateViaApi({
+            origin: state.origin,
+            token: state.token,
             text: t.text,
             src: "es",
             dst: "en",
-            dialect: "mx",
-            glossaryHits: hits,
-            config: translateConfig,
           });
-          safeSend(state.client, {
-            type: "final",
-            text: t.text,
-            translation: result.translation,
-          });
+          if (translation) {
+            safeSend(state.client, {
+              type: "final",
+              text: t.text,
+              translation,
+            });
+          }
         } catch {
           // Swallow — frontend can re-trigger via /api/translate retry button.
         }
@@ -373,6 +396,8 @@ export async function GET(req: Request): Promise<Response> {
   if (!authz.ok) {
     return new Response("unauthorized", { status: authz.code === 4403 ? 403 : 401 });
   }
+  const origin = new URL(req.url).origin;
+  const { token } = authz;
 
   const pair = new Pair();
   const clientSide = pair[0];
@@ -413,6 +438,8 @@ export async function GET(req: Request): Promise<Response> {
     upstream: null,
     backoffIdx: 0,
     closing: false,
+    origin,
+    token,
   };
 
   serverSide.addEventListener("message", (ev: MessageEvent) => {
