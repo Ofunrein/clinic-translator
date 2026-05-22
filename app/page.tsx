@@ -80,10 +80,10 @@ export default function LandingPage(): React.JSX.Element {
                   </div>
                   <div className="space-y-2">
                     <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
-                      "Me duele mucho el pecho desde ayer por la noche."
+                      &ldquo;Me duele mucho el pecho desde ayer por la noche.&rdquo;
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
-                      "También tengo dificultad para respirar."
+                      &ldquo;También tengo dificultad para respirar.&rdquo;
                     </div>
                   </div>
                 </div>
@@ -94,10 +94,10 @@ export default function LandingPage(): React.JSX.Element {
                   </div>
                   <div className="space-y-2">
                     <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5 text-sm text-slate-700">
-                      "My chest has been hurting a lot since last night."
+                      &ldquo;My chest has been hurting a lot since last night.&rdquo;
                     </div>
                     <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5 text-sm text-slate-700">
-                      "I'm also having difficulty breathing."
+                      &ldquo;I&apos;m also having difficulty breathing.&rdquo;
                     </div>
                   </div>
                 </div>
