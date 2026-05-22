@@ -2,14 +2,19 @@
 // Only active when NODE_ENV === "development". Never ships to production.
 import { NextRequest, NextResponse } from "next/server";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
-import { db } from "@/lib/db/client";
-import { users, sessions, staffUsers } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+
+// Prevent Next.js from statically collecting this route at build time.
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  // Lazy-import DB so it's never evaluated at build time.
+  const { db } = await import("@/lib/db/client");
+  const { users, sessions, staffUsers } = await import("@/lib/db/schema");
+  const { eq } = await import("drizzle-orm");
 
   const ct = req.headers.get("content-type") ?? "";
   let email = "";

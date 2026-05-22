@@ -14,7 +14,8 @@ interface GlobalCache {
 const globalCache = globalThis as unknown as GlobalCache;
 
 function buildClient(): DrizzleClient {
-  const url = process.env.DATABASE_URL;
+  // Strip surrounding quotes in case Vercel env var was set with literal quotes.
+  const url = (process.env.DATABASE_URL ?? "").replace(/^["']|["']$/g, "");
   if (!url) {
     throw new Error(
       "DATABASE_URL is not set. Required for the Drizzle client (see .env.example).",
