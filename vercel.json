@@ -1,4 +1,4 @@
 {
-  "installCommand": "SENTRYCLI_SKIP_DOWNLOAD=1 npm ci --no-audit",
+  "installCommand": "SENTRYCLI_SKIP_DOWNLOAD=1 npm install --no-audit --no-fund",
   "buildCommand": "npm run build"
 }
