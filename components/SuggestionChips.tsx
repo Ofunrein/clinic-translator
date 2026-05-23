@@ -11,6 +11,7 @@ export interface SuggestionChipsProps {
   onSendToPatient: () => void;
   onUseDraft: () => void;
   onDismiss: () => void;
+  className?: string;
 }
 
 function ConfidenceDot({ confidence }: { confidence: number }): React.ReactElement {
@@ -30,6 +31,7 @@ export function SuggestionChips({
   onSendToPatient,
   onUseDraft,
   onDismiss,
+  className,
 }: SuggestionChipsProps): React.ReactElement | null {
   const visible = suggestion.length > 0 || isStreaming;
 
@@ -59,6 +61,7 @@ export function SuggestionChips({
         "rounded-lg border px-3 py-2 text-sm",
         "border-cyan-200 bg-cyan-50/60",
         "dark:border-cyan-900 dark:bg-cyan-950/30",
+        className,
       )}
       data-testid="suggestion-chips"
     >
@@ -80,7 +83,7 @@ export function SuggestionChips({
         {suggestion.length > 0 ? suggestion : "Thinking…"}
       </p>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           className="bg-cyan-500 text-white hover:bg-cyan-600 disabled:opacity-50"

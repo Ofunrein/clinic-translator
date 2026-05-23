@@ -369,6 +369,10 @@ export function StaffPane({
   // Block escalate path unless the user explicitly opts in.
   const showEscalate =
     suggest.escalate && !overrideEscalate && !!suggest.suggestion;
+  const showSuggestionCard =
+    AI_ASSIST_ENABLED &&
+    (suggest.suggestion.length > 0 || suggest.isStreaming) &&
+    !showEscalate;
 
   return (
     <section
@@ -414,8 +418,9 @@ export function StaffPane({
             }}
           />
         ) : null}
-        {AI_ASSIST_ENABLED && (suggest.suggestion.length > 0 || suggest.isStreaming) && !showEscalate ? (
+        {showSuggestionCard ? (
           <SuggestionChips
+            className="mb-3"
             suggestion={suggest.suggestion}
             isStreaming={suggest.isStreaming}
             confidence={suggest.confidence}
@@ -437,7 +442,7 @@ export function StaffPane({
             aria-label="English staff message"
             data-testid="staff-textarea"
           />
-          {AI_ASSIST_ENABLED && !showEscalate ? (
+          {AI_ASSIST_ENABLED && !showEscalate && !showSuggestionCard ? (
             <SuggestionGhost
               suggestion={suggest.suggestion}
               isStreaming={suggest.isStreaming}
