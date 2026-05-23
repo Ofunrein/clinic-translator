@@ -1,4 +1,4 @@
-// Track B2. POST /api/tts — Google Cloud TTS Chirp 3 HD synthesis.
+// Track B2. POST /api/tts — provider-dispatched synthesis (Deepgram Aura default).
 // Spec §4.2, §5.2 step 3-4, §7 (TTS failure → fallback voice).
 //
 // Body: { text, voice?, sessionId? }

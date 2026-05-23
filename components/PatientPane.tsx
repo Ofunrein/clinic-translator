@@ -137,9 +137,9 @@ export function PatientPane({
   return (
     <section
       aria-label="Patient pane"
-      className={cn("flex h-full flex-col", className)}
+      className={cn("flex h-full min-h-0 flex-col", className)}
     >
-      <div className="border-b px-4 py-3">
+      <div className="border-b px-3 py-3 sm:px-4">
         <Waveform analyser={stt.analyser} />
         {stt.micMuted || silence.micMuted ? (
           <div
@@ -202,7 +202,7 @@ export function PatientPane({
 
       <div
         ref={scrollRef}
-        className="flex-1 space-y-2 overflow-y-auto px-4 py-3"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3 sm:px-4"
         data-testid="patient-transcript"
       >
         {patientUtterances.length === 0 ? (
@@ -216,7 +216,7 @@ export function PatientPane({
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t px-4 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 sm:px-4">
         <UrgencyFlag value={urgency} onChange={onUrgencyChange} />
         <div className="flex items-center gap-2">
           {stt.isStreaming ? (

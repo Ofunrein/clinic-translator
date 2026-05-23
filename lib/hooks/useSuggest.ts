@@ -46,11 +46,14 @@ function findLastPatientFinal(
     id: string;
     role: "patient" | "staff";
     isPartial?: boolean;
+    translation?: string;
   }>,
 ): string | null {
   for (let i = transcript.length - 1; i >= 0; i--) {
     const u = transcript[i];
-    if (!u.isPartial && u.role === "patient") return u.id;
+    // Wait until ES→EN translate finishes and the utterance is persisted
+    // (id reconciled to the server row) before requesting a suggestion.
+    if (!u.isPartial && u.role === "patient" && u.translation) return u.id;
   }
   return null;
 }

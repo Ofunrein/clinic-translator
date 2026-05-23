@@ -25,6 +25,9 @@ import {
   __setKvForTest,
 } from "@/lib/google-tts";
 import {
+  __setDeepgramTtsFetchForTest,
+} from "@/lib/providers/clients/deepgram-tts";
+import {
   ProviderNotImplementedError,
 } from "@/lib/providers/types";
 import { TranslateError, TTSError, STTError, SuggestError } from "@/lib/api/errors";
@@ -48,6 +51,7 @@ describe("providers/clients dispatcher", () => {
     __setBedrockStreamClientForTest(null);
     __setTtsClientForTest(null);
     __setKvForTest(null);
+    __setDeepgramTtsFetchForTest(null);
   });
 
   describe("translate()", () => {
@@ -109,6 +113,23 @@ describe("providers/clients dispatcher", () => {
         },
       });
       expect(result.audio.equals(FAKE_MP3)).toBe(true);
+    });
+
+    it("routes deepgram provider to the Deepgram Aura TTS client", async () => {
+      process.env.DEEPGRAM_API_KEY = "test-key";
+      __setDeepgramTtsFetchForTest(async () =>
+        new Response(FAKE_MP3, { status: 200 }),
+      );
+      const result = await synthesize({
+        text: "hola",
+        config: {
+          provider: "deepgram",
+          voice: "aura-2-javier-es",
+          engine: "aura-2",
+        },
+      });
+      expect(result.audio.equals(FAKE_MP3)).toBe(true);
+      expect(result.voice).toBe("aura-2-javier-es");
     });
 
     it("polly / cartesia / openai-tts / elevenlabs stubs throw TTSError(ProviderNotImplementedError)", async () => {

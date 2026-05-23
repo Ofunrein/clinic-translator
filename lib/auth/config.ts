@@ -1,15 +1,13 @@
 // NextAuth v5 (Auth.js) configuration.
-// - Google OAuth provider only (free, self-hosted).
-// - DrizzleAdapter against Neon Postgres (lib/db/client).
-// - `database` session strategy: sessions persisted in `sessions` table.
-// - `signIn` callback enforces clinic email allowlist (HIPAA §8 fail-closed).
-// - On allowlisted sign-in we mirror the NextAuth `users` row into `staff_users`
-//   so role lookups, audit FKs, and existing PHI routes keep working.
-//
-// Exports `{ handlers, auth, signIn, signOut }` — wired by the catch-all
-// `/api/auth/[...nextauth]` route and consumed by middleware + API helpers.
+// - Google OAuth + email/password via Credentials.
+// - `jwt` session strategy: session lives in a signed cookie, no DB round-trip.
+//   This is required for Credentials provider — database strategy + Credentials
+//   causes auth() to return null in API route handlers in Next.js 15.
+// - DrizzleAdapter still used for Google OAuth account persistence.
+// - signIn callback enforces allowlist + mirrors into staff_users.
 
-import NextAuth, { type NextAuthConfig, type Session, type User } from "next-auth";
+import NextAuth, { type NextAuthConfig, type Session } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
@@ -18,7 +16,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   accounts,
-  sessions,
   staffUsers,
   userCredentials,
   users,
@@ -41,23 +38,30 @@ declare module "next-auth" {
   }
 }
 
+declare module "next-auth/jwt" {
+  interface JWT {
+    userId?: string;
+    email?: string;
+    role?: StaffUser["role"] | null;
+  }
+}
+
 const googleClientId = process.env.GOOGLE_CLIENT_ID ?? "";
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
 
 export const authConfig: NextAuthConfig = {
-  // DrizzleAdapter type is overly strict on column shape; cast to bypass.
   // eslint-disable-next-line
   adapter: DrizzleAdapter(db, {
     usersTable: users as any,
     accountsTable: accounts as any,
-    sessionsTable: sessions as any,
     verificationTokensTable: verificationTokens as any,
   }),
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   providers: [
     Google({
       clientId: googleClientId,
       clientSecret: googleClientSecret,
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: { access_type: "offline", prompt: "consent" },
       },
@@ -120,27 +124,24 @@ export const authConfig: NextAuthConfig = {
       : []),
   ],
   pages: {
-    signIn: "/login",
+    signIn: "/",
     newUser: "/app",
-    error: "/login",
+    error: "/",
   },
   callbacks: {
-    async signIn({ user }: { user: User }): Promise<boolean | string> {
+    async signIn({ user, account }) {
+      // Allow linking Google to existing email-password accounts.
+      // OAuthAccountNotLinked fires when same email exists via different provider.
+      // We allow it by checking allowlist only.
       const email = user.email?.toLowerCase() ?? null;
       if (!email || !isEmailAllowed(email)) {
-        // Redirect string is treated as deny + redirect by NextAuth.
         return "/login?error=not_allowlisted";
       }
 
-      // Mirror id+email into staff_users so PHI routes can resolve role/FK.
-      // The NextAuth `users.id` is a text uuid; staff_users.id is uuid as well.
-      // We upsert by email (allowlist is per-email) and back-fill id on first
-      // login so existing rows transition from Supabase-issued ids cleanly.
       const userId = user.id;
-      if (!userId) {
-        return false;
-      }
+      if (!userId) return false;
 
+      // Mirror into staff_users so PHI routes resolve role/FK.
       const existing = await db
         .select({ id: staffUsers.id, active: staffUsers.active })
         .from(staffUsers)
@@ -156,48 +157,45 @@ export const authConfig: NextAuthConfig = {
           lastLoginAt: new Date(),
         });
       } else {
-        if (!row.active) {
-          // Deactivated staff member: deny and bounce.
-          return "/login?error=not_allowlisted";
-        }
+        if (!row.active) return "/login?error=not_allowlisted";
         await db
           .update(staffUsers)
-          .set({
-            id: userId,
-            name: user.name ?? null,
-            lastLoginAt: new Date(),
-          })
+          .set({ name: user.name ?? null, lastLoginAt: new Date() })
           .where(eq(staffUsers.email, email));
       }
       return true;
     },
-    async session({
-      session,
-      user,
-    }: {
-      session: Session;
-      user: User;
-    }): Promise<Session> {
-      // `user` is the row from the NextAuth `users` table (database strategy).
-      const email = (user.email ?? session.user?.email ?? "").toLowerCase();
-      let role: StaffUser["role"] | null = null;
-      if (email) {
-        const rows = await db
-          .select({ role: staffUsers.role, active: staffUsers.active })
-          .from(staffUsers)
-          .where(eq(staffUsers.email, email))
-          .limit(1);
-        const row = rows[0];
-        role = row && row.active ? row.role : null;
+
+    async jwt({ token, user, account }): Promise<JWT> {
+      // `user` is only set on first sign-in. Subsequent calls just return token.
+      if (user?.id) {
+        token.userId = user.id;
+        token.email = user.email?.toLowerCase() ?? token.email;
+
+        // Resolve role from staff_users
+        const email = user.email?.toLowerCase() ?? "";
+        if (email) {
+          const rows = await db
+            .select({ role: staffUsers.role, active: staffUsers.active })
+            .from(staffUsers)
+            .where(eq(staffUsers.email, email))
+            .limit(1);
+          const row = rows[0];
+          token.role = row && row.active ? row.role : null;
+        }
       }
-      session.user = {
-        id: user.id ?? "",
-        email,
-        name: user.name ?? null,
-        image: user.image ?? null,
-        role,
-      };
-      session.userId = user.id ?? "";
+      return token;
+    },
+
+    async session({ session, token }): Promise<Session> {
+      const userId = (token.userId ?? token.sub) as string | undefined;
+      const email = (token.email ?? session.user?.email ?? "") as string;
+      const role = (token.role ?? null) as StaffUser["role"] | null;
+
+      // Cast needed: session.user narrowly typed by adapter in jwt mode
+      const s = session as unknown as Record<string, unknown>;
+      s.user = { id: userId ?? "", email, name: session.user?.name ?? null, image: session.user?.image ?? null, role };
+      s.userId = userId ?? "";
       return session;
     },
   },

@@ -1,56 +1,42 @@
-// Track C2. Latency-mode presets that snap the four provider blobs to a
-// known-good combination. UI shows these as the "Fast / Balanced / Accurate"
-// radio cards on the settings page; saving a preset writes the underlying
-// `stt`/`translate`/`tts`/`suggest` jsonb columns + sets `latencyMode`.
+// Track C2. Latency-mode presets — Deepgram voice + Groq text (translate + suggest).
 
 import type { LatencyPresetKey, ProviderConfig } from "./types";
 
 const FAST: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
-  translate: { provider: "bedrock", model: "anthropic.claude-haiku-4-5-v1:0" },
-  tts: { provider: "cartesia", voice: "sonic-2-es-female", engine: "sonic-2" },
-  suggest: { provider: "bedrock", model: "anthropic.claude-haiku-4-5-v1:0" },
+  translate: { provider: "groq", model: "llama-3.1-8b-instant" },
+  tts: { provider: "deepgram", voice: "aura-2-olivia-es", engine: "aura-2" },
+  suggest: { provider: "groq", model: "llama-3.1-8b-instant" },
   latencyMode: "fast",
   realtimeMode: "text-middleman",
 };
 
 const BALANCED: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
-  translate: { provider: "bedrock", model: "anthropic.claude-haiku-4-5-v1:0" },
-  tts: { provider: "polly", voice: "Lupe", engine: "generative" },
-  suggest: { provider: "bedrock", model: "anthropic.claude-haiku-4-5-v1:0" },
+  translate: { provider: "groq", model: "llama-3.3-70b-versatile" },
+  tts: { provider: "deepgram", voice: "aura-2-javier-es", engine: "aura-2" },
+  suggest: { provider: "groq", model: "llama-3.3-70b-versatile" },
   latencyMode: "balanced",
   realtimeMode: "text-middleman",
 };
 
 const ACCURATE: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
-  translate: { provider: "bedrock", model: "anthropic.claude-sonnet-4-6-v1:0" },
+  translate: { provider: "groq", model: "llama-3.3-70b-versatile" },
   tts: {
-    provider: "google-tts",
-    voice: "es-US-Chirp3-HD-Achernar",
-    engine: "chirp-3-hd",
+    provider: "deepgram",
+    voice: "aura-2-estrella-es",
+    engine: "aura-2",
   },
-  suggest: { provider: "bedrock", model: "anthropic.claude-sonnet-4-6-v1:0" },
+  suggest: { provider: "groq", model: "llama-3.3-70b-versatile" },
   latencyMode: "accurate",
   realtimeMode: "text-middleman",
 };
 
-// Dev-only preset: runs the whole stack off a single OPENAI_API_KEY so the
-// app boots without AWS / Google / Deepgram credentials. STT is chunked
-// batch (Whisper has no streaming endpoint). NOT for production use — see
-// `notes` in registry entries.
-//
-// The persisted `latencyMode` is `"balanced"` because the DB `latency_mode`
-// enum does not include `dev-openai`; the preset key (`dev-openai`) lives
-// in memory only, accessed via `LATENCY_PRESETS["dev-openai"]`.
+// Legacy key — same stack as balanced (Deepgram + Groq only).
 const DEV_OPENAI: ProviderConfig = {
-  stt: { provider: "openai", model: "whisper-1", language: "es" },
-  translate: { provider: "openai", model: "gpt-4o-mini" },
-  tts: { provider: "openai", voice: "nova", engine: "tts-1" },
-  suggest: { provider: "openai", model: "gpt-4o-mini" },
+  ...BALANCED,
   latencyMode: "balanced",
-  realtimeMode: "text-middleman",
 };
 
 export const LATENCY_PRESETS: Record<LatencyPresetKey, ProviderConfig> = {
@@ -61,7 +47,6 @@ export const LATENCY_PRESETS: Record<LatencyPresetKey, ProviderConfig> = {
 };
 
 export function applyPreset(mode: LatencyPresetKey): ProviderConfig {
-  // Return a deep clone so callers can mutate freely.
   const src = LATENCY_PRESETS[mode];
   return {
     stt: { ...src.stt },

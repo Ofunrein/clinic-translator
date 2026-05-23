@@ -113,6 +113,15 @@ export async function POST(req: Request): Promise<NextResponse> {
             targetType: "utterance",
             targetId: newId,
           });
+          return NextResponse.json(
+            {
+              translation: result.translation,
+              glossary_hits: result.glossary_hits,
+              utterance_id: newId,
+              trace_id: traceId,
+            },
+            { status: 200 },
+          );
         } catch {
           // Don't fail the user-facing translate on a persistence error;
           // the frontend has its own IndexedDB queue per spec §7.

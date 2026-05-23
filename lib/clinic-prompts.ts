@@ -24,6 +24,8 @@ export interface ClinicConfig {
   transferPhone?: string;
   /** Free-form notes appended verbatim ("we don't accept Medicaid", etc). */
   policyNotes?: string;
+  /** Short FAQ bullets the model may cite when answering common questions. */
+  faqBullets?: string[];
 }
 
 /**
@@ -84,6 +86,10 @@ export function buildSuggestSystemPrompt(args: BuildSuggestPromptArgs): string {
   const policy = clinic.policyNotes
     ? `\nPolicy notes (verbatim): ${clinic.policyNotes}`
     : "";
+  const faqs =
+    clinic.faqBullets && clinic.faqBullets.length
+      ? `\nCommon FAQs:\n${clinic.faqBullets.map((f) => `- ${f}`).join("\n")}`
+      : "";
 
   return [
     `You are an English drafting assistant for the front-desk staff at ${clinic.name}.`,
@@ -98,6 +104,7 @@ export function buildSuggestSystemPrompt(args: BuildSuggestPromptArgs): string {
     afterHours.trim(),
     transfer.trim(),
     policy.trim(),
+    faqs.trim(),
     "",
     `Dialect register hint: ${DIALECT_REGISTER[dialect]}`,
     "",

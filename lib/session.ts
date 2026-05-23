@@ -23,6 +23,8 @@ export interface Utterance {
   translation?: string;
   ts: number;
   isPartial?: boolean;
+  /** True once this row exists in Postgres (via translate or utterances POST). */
+  syncedToServer?: boolean;
 }
 
 export interface SessionState {
@@ -40,9 +42,17 @@ export interface SessionState {
   /** Promote the trailing partial to a final, optionally with the EN translation. */
   promotePartialToFinal: (es: string, en?: string) => void;
   /** Add a final staff utterance (EN primary, ES translation). */
-  addStaffUtterance: (en: string, es: string) => void;
+  addStaffUtterance: (
+    en: string,
+    es: string,
+    opts?: { id?: string; syncedToServer?: boolean },
+  ) => void;
   /** Attach a translation to an existing final patient utterance by id. */
   setTranslation: (utteranceId: string, translation: string) => void;
+  /** Swap a client-side utterance id for the server-persisted id. */
+  reconcileUtteranceId: (oldId: string, newId: string) => void;
+  /** Mark an utterance as saved in Postgres. */
+  markUtteranceSynced: (utteranceId: string) => void;
 
   /** AI-assist (Track C1). */
   setSuggestion: (s: Partial<SuggestionState>) => void;
@@ -191,6 +201,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       translation: en,
       ts: Date.now(),
       isPartial: false,
+      syncedToServer: false,
     };
     if (last && last.id === PARTIAL_ID && last.isPartial) {
       transcript[lastIdx] = finalUtt;
@@ -204,16 +215,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  addStaffUtterance: (en, es) => {
+  addStaffUtterance: (en, es, opts) => {
     const transcript = get().transcript.slice();
     transcript.push({
-      id: uuid(),
+      id: opts?.id ?? uuid(),
       role: "staff",
       langPrimary: "en",
       text: en,
       translation: es,
       ts: Date.now(),
       isPartial: false,
+      syncedToServer: opts?.syncedToServer ?? false,
     });
     set({ transcript });
     void persist(get()).catch((err: unknown) => {
@@ -224,6 +236,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setTranslation: (utteranceId, translation) => {
     const transcript = get().transcript.map((u) =>
       u.id === utteranceId ? { ...u, translation } : u,
+    );
+    set({ transcript });
+    void persist(get()).catch((err: unknown) => {
+      get().setStatus("degraded", `local save failed: ${stringifyErr(err)}`);
+    });
+  },
+
+  reconcileUtteranceId: (oldId, newId) => {
+    if (oldId === newId) {
+      get().markUtteranceSynced(oldId);
+      return;
+    }
+    const transcript = get().transcript.map((u) =>
+      u.id === oldId ? { ...u, id: newId, syncedToServer: true } : u,
+    );
+    const suggestion = get().suggestion;
+    const nextSuggestion =
+      suggestion.utteranceId === oldId
+        ? { ...suggestion, utteranceId: newId }
+        : suggestion;
+    set({ transcript, suggestion: nextSuggestion });
+    void persist(get()).catch((err: unknown) => {
+      get().setStatus("degraded", `local save failed: ${stringifyErr(err)}`);
+    });
+  },
+
+  markUtteranceSynced: (utteranceId) => {
+    const transcript = get().transcript.map((u) =>
+      u.id === utteranceId ? { ...u, syncedToServer: true } : u,
     );
     set({ transcript });
     void persist(get()).catch((err: unknown) => {

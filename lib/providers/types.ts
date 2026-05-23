@@ -27,10 +27,12 @@ export type TranslateProvider =
   | { provider: "vertex-gemini"; model: string }
   | { provider: "azure-openai"; model: string }
   | { provider: "deepl"; model: string }
-  | { provider: "openai"; model: string };
+  | { provider: "openai"; model: string }
+  | { provider: "groq"; model: string };
 
 // ----- TTS -----
 export type TtsProvider =
+  | { provider: "deepgram"; voice: string; engine: "aura-2" }
   | { provider: "polly"; voice: string; engine: "neural" | "generative" | "long-form" | "standard" }
   | { provider: "google-tts"; voice: string; engine: "chirp-3-hd" | "standard" }
   | { provider: "cartesia"; voice: string; engine: "sonic-2" }
@@ -43,6 +45,7 @@ export type SuggestProvider =
   | { provider: "bedrock"; model: string }
   | { provider: "vertex-gemini"; model: string }
   | { provider: "azure-openai"; model: string }
+  | { provider: "groq"; model: string }
   | { provider: "openai"; model: string };
 
 // ----- Composite per-clinic config blob -----
@@ -106,6 +109,10 @@ export interface EscalationRules {
   confidenceFloor: number;
   /** Optional categories that always escalate (clinical, billing, etc). */
   categories?: ReadonlyArray<string>;
+  /** Seconds to review Spanish preview before auto-cancel or auto-send. Default 10. */
+  previewHoldSec?: number;
+  /** When true, preview auto-speaks to the patient when the timer expires. */
+  autoSendPreview?: boolean;
 }
 
 export interface AiAssistConfig {

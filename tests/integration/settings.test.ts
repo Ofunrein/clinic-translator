@@ -131,9 +131,9 @@ describe("/api/settings", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { settings: Row };
     expect(body.settings).toBeDefined();
-    // Defaults from the balanced preset.
-    expect((body.settings.translate as Row).provider).toBe("bedrock");
-    expect((body.settings.tts as Row).provider).toBe("polly");
+    // Defaults from the balanced preset (Deepgram + Groq).
+    expect((body.settings.translate as Row).provider).toBe("groq");
+    expect((body.settings.tts as Row).provider).toBe("deepgram");
   });
 
   it("PATCH rejects invalid provider config with 400", async () => {
@@ -176,8 +176,8 @@ describe("/api/settings", () => {
       body: JSON.stringify({
         latencyMode: "accurate",
         translate: {
-          provider: "bedrock",
-          model: "anthropic.claude-sonnet-4-6-v1:0",
+          provider: "groq",
+          model: "llama-3.3-70b-versatile",
         },
       }),
     });

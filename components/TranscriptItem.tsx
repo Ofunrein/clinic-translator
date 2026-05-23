@@ -18,12 +18,15 @@ export interface TranscriptItemProps {
   /** Dialect hint for glossary priority. */
   dialect?: Dialect;
   className?: string;
+  /** Optional trailing actions (e.g. replay / repeat send). */
+  actions?: React.ReactNode;
 }
 
 export function TranscriptItem({
   utterance,
   dialect = "all",
   className,
+  actions,
 }: TranscriptItemProps): React.ReactElement {
   const isPatient = utterance.role === "patient";
   // Primary line is whatever the speaker actually said; translation goes underneath.
@@ -57,6 +60,8 @@ export function TranscriptItem({
           >
             partial
           </span>
+        ) : actions ? (
+          <div className="ml-auto flex shrink-0 items-center">{actions}</div>
         ) : null}
       </div>
       <p className="text-sm leading-snug text-foreground">

@@ -10,11 +10,13 @@ export interface TranslateRequest {
   text: string;
   src: "es" | "en";
   dst: "es" | "en";
+  sessionId?: string;
 }
 
 export interface TranslateResponse {
   translation: string;
   glossary_hits?: Array<{ en: string; es: string; category?: string }>;
+  utterance_id?: string;
   trace_id?: string;
 }
 

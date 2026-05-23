@@ -1,16 +1,14 @@
 "use client";
 
-// Track C2. Vapi-dashboard-style settings page.
+// Track C2. Settings page — Deepgram voice + latency presets.
 //
-// Sections (top to bottom):
+// Sections:
 //   - Live cost estimator
+//   - Migration banner (legacy multi-vendor configs)
 //   - Latency-mode preset cards
-//   - STT / Translate / TTS / Suggest pickers
-//   - AI Assist controls
-//   - Clinic info (name/hours/dialect/escalation)
-//   - Recording + retention
-//   - Glossary editor
-//   - Save / Reset
+//   - Deepgram STT/TTS pickers
+//   - Read-only translation/suggest (tied to preset)
+//   - AI Assist, clinic, retention, glossary tabs
 //
 // All state is driven by TanStack Query against /api/settings; PATCH is
 // optimistic with an automatic rollback on failure.
@@ -21,8 +19,8 @@ import {
   useUpdateClinicSettings,
   type ClientClinicSettings,
 } from "@/lib/hooks/useClinicSettings";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  PROVIDER_REGISTRY,
   getCatalogEntry,
 } from "@/lib/providers/registry";
 import { LATENCY_PRESETS, applyPreset } from "@/lib/providers/presets";
@@ -45,7 +43,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -61,16 +61,39 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { AlertTriangle } from "lucide-react";
 import { GlossaryEditor } from "./_glossary";
+import { ClinicKnowledgeTab } from "./_clinic-knowledge";
+import { normalizeEscalationRules } from "@/lib/escalation-rules";
+import {
+  DEEPGRAM_AURA_ES_VOICE_GROUPS,
+  DEEPGRAM_AURA_ES_VOICES,
+  deepgramEsVoiceLabel,
+} from "@/lib/providers/deepgram-voices";
+
+const DEEPGRAM_STT_MODELS = [
+  { id: "nova-3", label: "Nova-3 Spanish (streaming)" },
+  { id: "nova-2", label: "Nova-2 Spanish" },
+] as const;
+
+const DEFAULT_DEEPGRAM_VOICE = DEEPGRAM_AURA_ES_VOICES[0].id;
+
+function isSupportedStack(cfg: ProviderConfig): boolean {
+  return (
+    cfg.stt.provider === "deepgram" &&
+    cfg.tts.provider === "deepgram" &&
+    cfg.translate.provider === "groq" &&
+    cfg.suggest.provider === "groq"
+  );
+}
+
+function voiceCostConfig(cfg: ProviderConfig): ProviderConfig {
+  if (cfg.stt.provider === "deepgram" && cfg.tts.provider === "deepgram") {
+    return cfg;
+  }
+  const balanced = applyPreset("balanced");
+  return { ...cfg, stt: balanced.stt, tts: balanced.tts };
+}
 
 // ---------------------------------------------------------------------------
 // Cost estimator — rough per-5-min-call price computed from catalog entries.
@@ -82,25 +105,23 @@ interface CostBreakdown {
 }
 
 function estimateCost(cfg: ProviderConfig): CostBreakdown {
-  // Assumptions: 5-minute call, ~750 words STT, ~3 patient + 3 staff turns.
-  // STT priced per 1k chars (transcribed), translate per 1k char in/out,
-  // TTS per 1k chars, suggest per 1k char in/out.
+  const voice = voiceCostConfig(cfg);
   const sttChars = 4500;
   const translateChars = 4500;
   const ttsChars = 1500;
   const suggestChars = 2000;
 
-  const sttEntry = getCatalogEntry("stt", cfg.stt.provider);
-  const sttModel = sttEntry?.models.find((m) => m.id === cfg.stt.model);
+  const sttEntry = getCatalogEntry("stt", voice.stt.provider);
+  const sttModel = sttEntry?.models.find((m) => m.id === voice.stt.model);
   const sttCost = ((sttModel?.costPer1k ?? 0) * sttChars) / 1000;
 
   const trEntry = getCatalogEntry("translate", cfg.translate.provider);
   const trModel = trEntry?.models.find((m) => m.id === cfg.translate.model);
   const trCost = ((trModel?.costPer1k ?? 0) * translateChars) / 1000;
 
-  const ttsEntry = getCatalogEntry("tts", cfg.tts.provider);
+  const ttsEntry = getCatalogEntry("tts", voice.tts.provider);
   const ttsVoice = ttsEntry?.voices.find(
-    (v) => v.id === cfg.tts.voice && v.engine === cfg.tts.engine,
+    (v) => v.id === voice.tts.voice && v.engine === voice.tts.engine,
   );
   const ttsCost = ((ttsVoice?.costPer1kChars ?? 0) * ttsChars) / 1000;
 
@@ -130,9 +151,13 @@ function formatCents(usd: number): string {
 export default function SettingsPage(): React.JSX.Element {
   const settingsQ = useClinicSettings();
   const update = useUpdateClinicSettings();
+  const qc = useQueryClient();
 
-  // Local draft state — mirror server, edits PATCH on save.
   const [draft, setDraft] = React.useState<ClientClinicSettings | null>(null);
+  const [tab, setTab] = React.useState("providers");
+  const [sectionSaving, setSectionSaving] = React.useState(false);
+  const [migrating, setMigrating] = React.useState(false);
+  const [migrateError, setMigrateError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (settingsQ.data) setDraft(settingsQ.data);
@@ -140,7 +165,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   if (!draft || !settingsQ.data) {
     return (
-      <main className="mx-auto max-w-4xl p-6">
+      <main className="mx-auto max-w-4xl p-4 sm:p-6">
         {settingsQ.isError ? (
           <div className="rounded-md border border-destructive p-4 text-destructive">
             Failed to load settings: {settingsQ.error.message}
@@ -162,6 +187,7 @@ export default function SettingsPage(): React.JSX.Element {
   };
 
   const cost = estimateCost(cfg);
+  const needsMigration = !isSupportedStack(cfg);
 
   const setProvider = (next: Partial<ProviderConfig>): void => {
     setDraft({
@@ -191,7 +217,19 @@ export default function SettingsPage(): React.JSX.Element {
       dialect: draft.dialect,
       clinicName: draft.clinicName,
       clinicHours: draft.clinicHours,
+      clinicServices: draft.clinicServices,
+      clinicAfterHours: draft.clinicAfterHours,
+      clinicTransferPhone: draft.clinicTransferPhone,
+      clinicPolicyNotes: draft.clinicPolicyNotes,
+      clinicFaqBullets: draft.clinicFaqBullets,
       escalationRules: draft.escalationRules as EscalationRules,
+    });
+  };
+
+  const onSaveKnowledgeSection = (patch: Parameters<typeof update.mutate>[0]): void => {
+    setSectionSaving(true);
+    update.mutate(patch, {
+      onSettled: () => setSectionSaving(false),
     });
   };
 
@@ -208,16 +246,37 @@ export default function SettingsPage(): React.JSX.Element {
     });
   };
 
+  const onMigrateDeepgram = async (): Promise<void> => {
+    setMigrating(true);
+    setMigrateError(null);
+    try {
+      const res = await fetch("/api/settings/migrate-deepgram", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `migration failed (${res.status})`);
+      }
+      const json = (await res.json()) as { settings: ClientClinicSettings };
+      qc.setQueryData(["clinic-settings"], json.settings);
+      setDraft(json.settings);
+    } catch (err) {
+      setMigrateError(err instanceof Error ? err.message : "migration failed");
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
-      {/* Cost estimator strip */}
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-6 sm:p-6">
       <Card>
-        <CardContent className="flex items-center justify-between p-4">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-sm text-muted-foreground">Per 5-min call</div>
-            <div className="text-2xl font-semibold">{formatCents(cost.total)}</div>
+            <div className="text-xl font-semibold sm:text-2xl">{formatCents(cost.total)}</div>
           </div>
-          <div className="flex gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-xs">
             {cost.parts.map((p) => (
               <Badge key={p.label} variant="secondary">
                 {p.label}: {formatCents(p.cost)}
@@ -227,16 +286,32 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Tabs
-        value={"providers"}
-        onValueChange={() => {
-          /* visual tabs only; state is one form */
-        }}
-      >
-        <TabsList>
-          <TabsTrigger value="providers">Providers</TabsTrigger>
+      {needsMigration ? (
+        <div className="flex flex-col gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600" />
+            <div>
+              <div className="font-medium">Stack is not Deepgram + Groq</div>
+              <div className="text-muted-foreground">
+                Voice uses Deepgram Nova + Aura; translation and suggestions use
+                Groq. One click resets to the balanced preset and saves.
+              </div>
+              {migrateError ? (
+                <div className="mt-1 text-destructive">{migrateError}</div>
+              ) : null}
+            </div>
+          </div>
+          <Button onClick={onMigrateDeepgram} disabled={migrating}>
+            {migrating ? "Migrating…" : "Switch to Deepgram + Groq"}
+          </Button>
+        </div>
+      ) : null}
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="h-auto w-full max-w-full flex-wrap justify-start gap-1 overflow-x-auto">
+          <TabsTrigger value="providers">Voice</TabsTrigger>
           <TabsTrigger value="ai">AI Assist</TabsTrigger>
-          <TabsTrigger value="clinic">Clinic</TabsTrigger>
+          <TabsTrigger value="clinic">Knowledge</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
           <TabsTrigger value="glossary">Glossary</TabsTrigger>
         </TabsList>
@@ -248,16 +323,13 @@ export default function SettingsPage(): React.JSX.Element {
               setProvider(preset);
             }}
           />
-          <SttCard value={cfg.stt} onChange={(stt) => setProvider({ stt })} />
-          <TranslateCard
-            value={cfg.translate}
-            onChange={(translate) => setProvider({ translate })}
+          <DeepgramVoiceCard
+            stt={cfg.stt}
+            tts={cfg.tts}
+            onSttChange={(stt) => setProvider({ stt })}
+            onTtsChange={(tts) => setProvider({ tts })}
           />
-          <TtsCard value={cfg.tts} onChange={(tts) => setProvider({ tts })} />
-          <SuggestCard
-            value={cfg.suggest}
-            onChange={(suggest) => setProvider({ suggest })}
-          />
+          <TranslationCard translate={cfg.translate} suggest={cfg.suggest} />
         </TabsContent>
         <TabsContent value="ai" className="space-y-4">
           <AiAssistCard
@@ -268,13 +340,33 @@ export default function SettingsPage(): React.JSX.Element {
               setDraft({ ...draft, escalationRules: rules })
             }
           />
+          <StaffPreviewCard
+            escalation={draft.escalationRules as EscalationRules}
+            onEscalationChange={(rules) =>
+              setDraft({ ...draft, escalationRules: rules })
+            }
+          />
         </TabsContent>
         <TabsContent value="clinic" className="space-y-4">
-          <ClinicCard
-            name={draft.clinicName}
-            hours={draft.clinicHours}
-            dialect={draft.dialect}
+          <ClinicKnowledgeTab
+            draft={{
+              clinicName: draft.clinicName,
+              clinicHours: draft.clinicHours,
+              clinicAfterHours: draft.clinicAfterHours,
+              clinicTransferPhone: draft.clinicTransferPhone,
+              clinicPolicyNotes: draft.clinicPolicyNotes,
+              clinicServices: Array.isArray(draft.clinicServices)
+                ? draft.clinicServices
+                : [],
+              clinicFaqBullets: Array.isArray(draft.clinicFaqBullets)
+                ? draft.clinicFaqBullets
+                : [],
+              dialect: draft.dialect,
+            }}
             onChange={(p) => setDraft({ ...draft, ...p })}
+            onSaveSection={onSaveKnowledgeSection}
+            pending={sectionSaving || update.isPending}
+            sectionError={update.isError ? update.error.message : null}
           />
         </TabsContent>
         <TabsContent value="data" className="space-y-4">
@@ -290,11 +382,11 @@ export default function SettingsPage(): React.JSX.Element {
         </TabsContent>
       </Tabs>
 
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onReset}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="ghost" onClick={onReset} className="w-full sm:w-auto">
           Reset to defaults
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {update.isError ? (
             <span className="text-sm text-destructive">
               {update.error.message}
@@ -322,16 +414,16 @@ function LatencyModeCard({
 }): React.JSX.Element {
   const modes: LatencyMode[] = ["fast", "balanced", "accurate"];
   const labels: Record<LatencyMode, { title: string; sub: string; p50: string }> = {
-    fast: { title: "Fast", sub: "Cartesia + Haiku 4.5", p50: "~600 ms" },
+    fast: { title: "Fast", sub: "Olivia voice + Groq 8B", p50: "~600 ms" },
     balanced: {
       title: "Balanced (recommended)",
-      sub: "Polly Generative + Haiku 4.5",
+      sub: "Javier voice + Groq 70B",
       p50: "~900 ms",
     },
     accurate: {
       title: "Accurate",
-      sub: "Chirp 3 HD + Sonnet 4.6",
-      p50: "~1.4 s",
+      sub: "Estrella voice + Groq 70B",
+      p50: "~1.1 s",
     },
   };
   return (
@@ -339,12 +431,12 @@ function LatencyModeCard({
       <CardHeader>
         <CardTitle>Latency mode</CardTitle>
         <CardDescription>
-          Snap all four providers to a known-good combo. Per-call cost is
-          re-computed live.
+          Snap voice + translation models to a known-good combo. Per-call cost
+          is re-computed live.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {modes.map((m) => {
             const active = m === value;
             const preset = LATENCY_PRESETS[m];
@@ -379,196 +471,84 @@ function LatencyModeCard({
 }
 
 // ---------------------------------------------------------------------------
-// Section: STT
+// Section: Deepgram voice (STT + TTS)
 // ---------------------------------------------------------------------------
 
-function ProviderWarning({ provider, kind }: { provider: string; kind: "stt" | "translate" | "tts" | "suggest" }): React.JSX.Element | null {
-  const entry = getCatalogEntry(kind, provider);
-  if (!entry || entry.baaTier === "covered") return null;
-  return (
-    <div className="mt-2 flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-2 text-xs">
-      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-yellow-600" />
-      <div>
-        <div className="font-medium">
-          BAA tier: {entry.baaTier === "enterprise-only" ? "enterprise only" : "no BAA available"}
-        </div>
-        {entry.notes ? <div className="text-muted-foreground">{entry.notes}</div> : null}
-      </div>
-    </div>
-  );
-}
-
-function SttCard({
-  value,
-  onChange,
+function DeepgramVoiceCard({
+  stt,
+  tts,
+  onSttChange,
+  onTtsChange,
 }: {
-  value: SttProvider;
-  onChange: (next: SttProvider) => void;
+  stt: SttProvider;
+  tts: TtsProvider;
+  onSttChange: (next: SttProvider) => void;
+  onTtsChange: (next: TtsProvider) => void;
 }): React.JSX.Element {
-  const providers = Object.keys(PROVIDER_REGISTRY.stt);
-  const entry = getCatalogEntry("stt", value.provider);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>STT</CardTitle>
-        <CardDescription>Transcribe Spanish patient audio in real time.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-2">
-        <Select
-          value={value.provider}
-          onValueChange={(p) => {
-            const e = getCatalogEntry("stt", p);
-            const m = e?.models[0]?.id ?? "";
-            onChange({ provider: p as SttProvider["provider"], model: m, language: "es" });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {providers.map((p) => (
-              <SelectItem key={p} value={p}>
-                {PROVIDER_REGISTRY.stt[p].name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={value.model}
-          onValueChange={(model) => onChange({ ...value, model })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(entry?.models ?? []).map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={value.language ?? "es"} onValueChange={(language) => onChange({ ...value, language })}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="es">Spanish (es)</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="col-span-3">
-          <ProviderWarning provider={value.provider} kind="stt" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section: Translate
-// ---------------------------------------------------------------------------
-
-function TranslateCard({
-  value,
-  onChange,
-}: {
-  value: TranslateProvider;
-  onChange: (next: TranslateProvider) => void;
-}): React.JSX.Element {
-  const providers = Object.keys(PROVIDER_REGISTRY.translate);
-  const entry = getCatalogEntry("translate", value.provider);
-  const model = entry?.models.find((m) => m.id === value.model);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Translate model</CardTitle>
-        <CardDescription>
-          Translates patient ES → staff EN and staff EN → patient ES.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-2">
-        <Select
-          value={value.provider}
-          onValueChange={(p) => {
-            const e = getCatalogEntry("translate", p);
-            const m = e?.models[0]?.id ?? "";
-            onChange({ provider: p as TranslateProvider["provider"], model: m });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {providers.map((p) => (
-              <SelectItem key={p} value={p}>
-                {PROVIDER_REGISTRY.translate[p].name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={value.model} onValueChange={(m) => onChange({ ...value, model: m })}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(entry?.models ?? []).map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="col-span-2 flex flex-wrap gap-2 text-xs">
-          {model?.costPer1k !== undefined ? (
-            <Badge variant="secondary">${(model.costPer1k * 1000).toFixed(2)} / 1M chars</Badge>
-          ) : null}
-          {model?.baseLatencyMs !== undefined ? (
-            <Badge variant="secondary">~{model.baseLatencyMs} ms</Badge>
-          ) : null}
-        </div>
-        <div className="col-span-2">
-          <ProviderWarning provider={value.provider} kind="translate" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section: TTS
-// ---------------------------------------------------------------------------
-
-function TtsCard({
-  value,
-  onChange,
-}: {
-  value: TtsProvider;
-  onChange: (next: TtsProvider) => void;
-}): React.JSX.Element {
-  const providers = Object.keys(PROVIDER_REGISTRY.tts);
-  const entry = getCatalogEntry("tts", value.provider);
+  const sttModel =
+    stt.provider === "deepgram" ? stt.model : DEEPGRAM_STT_MODELS[0].id;
+  const ttsVoice =
+    tts.provider === "deepgram" ? tts.voice : DEFAULT_DEEPGRAM_VOICE;
   const [previewing, setPreviewing] = React.useState(false);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [previewError, setPreviewError] = React.useState<string | null>(null);
+  const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const previewUrlRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      previewAudioRef.current?.pause();
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
+
+  const cleanupPreviewAudio = (): void => {
+    previewAudioRef.current?.pause();
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    previewAudioRef.current = null;
+  };
 
   const onPreview = async (): Promise<void> => {
     setPreviewing(true);
+    setPreviewError(null);
+    cleanupPreviewAudio();
+    const config: TtsProvider = {
+      provider: "deepgram",
+      voice: ttsVoice,
+      engine: "aura-2",
+    };
     try {
       const res = await fetch("/api/tts/preview", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ config: value }),
+        body: JSON.stringify({ config }),
         credentials: "include",
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? "preview failed");
+        throw new Error(body.message ?? `Preview failed (${res.status})`);
       }
       const buf = await res.arrayBuffer();
-      const blob = new Blob([buf], { type: "audio/mpeg" });
+      if (buf.byteLength === 0) {
+        throw new Error("Preview returned empty audio");
+      }
+      const mime = res.headers.get("content-type") ?? "audio/mpeg";
+      const blob = new Blob([buf], { type: mime });
       const url = URL.createObjectURL(blob);
+      previewUrlRef.current = url;
       const audio = new Audio(url);
-      audioRef.current = audio;
+      previewAudioRef.current = audio;
+      audio.onended = cleanupPreviewAudio;
+      audio.onerror = () => {
+        setPreviewError("Could not play audio in this browser");
+        cleanupPreviewAudio();
+      };
       await audio.play();
+    } catch (err) {
+      cleanupPreviewAudio();
+      setPreviewError(err instanceof Error ? err.message : "Preview failed");
     } finally {
       setPreviewing(false);
     }
@@ -577,59 +557,70 @@ function TtsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>TTS voice</CardTitle>
+        <CardTitle>Deepgram voice</CardTitle>
         <CardDescription>
-          Speaks staff replies back to the patient in Spanish.
+          One API key powers Spanish speech-to-text (Nova) and Aura-2
+          text-to-speech. Pick a Mexican voice for most patients, or another
+          regional Spanish voice when needed.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-2">
-        <Select
-          value={value.provider}
-          onValueChange={(p) => {
-            const e = getCatalogEntry("tts", p);
-            const v = e?.voices[0];
-            if (!v) return;
-            onChange({
-              provider: p as TtsProvider["provider"],
-              voice: v.id,
-              engine: v.engine as TtsProvider["engine"],
-            } as TtsProvider);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {providers.map((p) => (
-              <SelectItem key={p} value={p}>
-                {PROVIDER_REGISTRY.tts[p].name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={`${value.voice}::${value.engine}`}
-          onValueChange={(v) => {
-            const [voice, engine] = v.split("::");
-            onChange({ ...value, voice, engine } as TtsProvider);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(entry?.voices ?? []).map((v) => (
-              <SelectItem key={`${v.id}::${v.engine}`} value={`${v.id}::${v.engine}`}>
-                {v.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button onClick={onPreview} disabled={previewing} variant="outline">
-          {previewing ? "Loading…" : "Preview voice"}
-        </Button>
-        <div className="col-span-3">
-          <ProviderWarning provider={value.provider} kind="tts" />
+      <CardContent className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Speech-to-text model</label>
+          <Select
+            value={sttModel}
+            onValueChange={(model) =>
+              onSttChange({ provider: "deepgram", model, language: "es" })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEEPGRAM_STT_MODELS.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Text-to-speech voice</label>
+          <Select
+            value={ttsVoice}
+            onValueChange={(voice) =>
+              onTtsChange({ provider: "deepgram", voice, engine: "aura-2" })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEEPGRAM_AURA_ES_VOICE_GROUPS.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.voices.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {deepgramEsVoiceLabel(v)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="sm:col-span-2 space-y-2">
+          <Button onClick={() => void onPreview()} disabled={previewing} variant="outline">
+            {previewing ? "Loading…" : "Preview voice"}
+          </Button>
+          {previewError ? (
+            <p className="text-sm text-destructive">{previewError}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Plays a short Spanish sample using your saved Deepgram key.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -637,59 +628,48 @@ function TtsCard({
 }
 
 // ---------------------------------------------------------------------------
-// Section: Suggest
+// Section: Translation (read-only — tied to latency mode)
 // ---------------------------------------------------------------------------
 
-function SuggestCard({
-  value,
-  onChange,
+function TranslationCard({
+  translate,
+  suggest,
 }: {
-  value: SuggestProvider;
-  onChange: (next: SuggestProvider) => void;
+  translate: TranslateProvider;
+  suggest: SuggestProvider;
 }): React.JSX.Element {
-  const providers = Object.keys(PROVIDER_REGISTRY.suggest);
-  const entry = getCatalogEntry("suggest", value.provider);
+  const trEntry = getCatalogEntry("translate", translate.provider);
+  const trModel = trEntry?.models.find((m) => m.id === translate.model);
+  const sugEntry = getCatalogEntry("suggest", suggest.provider);
+  const sugModel = sugEntry?.models.find((m) => m.id === suggest.model);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI Assist model</CardTitle>
+        <CardTitle>Translation &amp; suggestions</CardTitle>
         <CardDescription>
-          Drafts the staff reply suggestion. Default is the same model as
-          translate; override here to use a stronger model.
+          Mexican Spanish Aura voices for patient playback. Translation and AI
+          suggestions run on Groq — change latency mode above to swap models.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-2">
-        <Select
-          value={value.provider}
-          onValueChange={(p) => {
-            const e = getCatalogEntry("suggest", p);
-            const m = e?.models[0]?.id ?? "";
-            onChange({ provider: p as SuggestProvider["provider"], model: m });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {providers.map((p) => (
-              <SelectItem key={p} value={p}>
-                {PROVIDER_REGISTRY.suggest[p].name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={value.model} onValueChange={(m) => onChange({ ...value, model: m })}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(entry?.models ?? []).map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">Translate:</span>
+          <Badge variant="secondary">
+            {trEntry?.name ?? translate.provider} — {trModel?.label ?? translate.model}
+          </Badge>
+          {trModel?.costPer1k !== undefined ? (
+            <Badge variant="outline">
+              ${(trModel.costPer1k * 1000).toFixed(2)} / 1M chars
+            </Badge>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">AI Assist:</span>
+          <Badge variant="secondary">
+            {sugEntry?.name ?? suggest.provider} — {sugModel?.label ?? suggest.model}
+          </Badge>
+        </div>
       </CardContent>
     </Card>
   );
@@ -801,56 +781,68 @@ function AiAssistCard({
 }
 
 // ---------------------------------------------------------------------------
-// Section: Clinic
+// Section: staff Spanish preview timing
 // ---------------------------------------------------------------------------
 
-function ClinicCard({
-  name,
-  hours,
-  dialect,
-  onChange,
+function StaffPreviewCard({
+  escalation,
+  onEscalationChange,
 }: {
-  name: string;
-  hours: string;
-  dialect: "mx" | "cen" | "car" | "other";
-  onChange: (p: { clinicName?: string; clinicHours?: string; dialect?: "mx" | "cen" | "car" | "other" }) => void;
+  escalation: EscalationRules;
+  onEscalationChange: (rules: EscalationRules) => void;
 }): React.JSX.Element {
+  const rules = normalizeEscalationRules(escalation);
+  const holdSec = rules.previewHoldSec ?? 10;
+  const autoSend = rules.autoSendPreview ?? false;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Clinic info</CardTitle>
+        <CardTitle>Staff message preview</CardTitle>
+        <CardDescription>
+          After you translate English to Spanish, staff review the preview before
+          it is spoken to the patient. AI suggestions are never auto-sent — this
+          only applies to messages staff explicitly translate.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         <div>
-          <label className="text-sm font-medium">Name</label>
-          <Input value={name} onChange={(e) => onChange({ clinicName: e.target.value })} />
-        </div>
-        <div>
-          <label className="text-sm font-medium">Hours</label>
-          <Textarea
-            value={hours}
-            onChange={(e) => onChange({ clinicHours: e.target.value })}
-            rows={3}
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium">Default dialect</label>
-          <Select
-            value={dialect}
-            onValueChange={(v) =>
-              onChange({ dialect: v as "mx" | "cen" | "car" | "other" })
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm font-medium">Review time</div>
+            <Badge variant="secondary">
+              {holdSec <= 0 ? "Manual only" : `${holdSec}s`}
+            </Badge>
+          </div>
+          <Slider
+            value={holdSec}
+            onValueChange={(n) =>
+              onEscalationChange({ ...rules, previewHoldSec: n })
             }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mx">Mexican (mx)</SelectItem>
-              <SelectItem value="cen">Central American (cen)</SelectItem>
-              <SelectItem value="car">Caribbean (car)</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-            </SelectContent>
-          </Select>
+            min={0}
+            max={30}
+            step={1}
+          />
+          <div className="mt-1 text-xs text-muted-foreground">
+            Seconds to review the Spanish preview. Set to 0 to disable the timer
+            (staff must click Send &amp; Speak).
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">Auto-send when timer ends</div>
+            <div className="text-xs text-muted-foreground">
+              Off (default): preview is dismissed when time runs out. On: speaks
+              to the patient automatically.
+            </div>
+          </div>
+          <Switch
+            checked={autoSend}
+            disabled={holdSec <= 0}
+            onCheckedChange={(v) =>
+              onEscalationChange({ ...rules, autoSendPreview: v })
+            }
+          />
         </div>
       </CardContent>
     </Card>

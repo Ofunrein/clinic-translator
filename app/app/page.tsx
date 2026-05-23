@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   QueryClient,
   QueryClientProvider,
@@ -14,6 +15,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { Button } from "@/components/ui/button";
 import { AudioContextProvider } from "@/lib/audio-context";
 import { useSessionStore } from "@/lib/session";
+import { persistUtteranceToServer } from "@/lib/transcript-sync";
 import type { Urgency } from "@/components/UrgencyFlag";
 
 interface SessionDto {
@@ -123,7 +125,19 @@ function ClinicTranslatorApp(): React.ReactElement {
       if (!sessionId) return null;
       return postJson<SessionDto>(`/api/sessions/${sessionId}/end`, {});
     },
-    onSettled: () => {
+    onSettled: async () => {
+      const state = useSessionStore.getState();
+      if (state.sessionId) {
+        for (const u of state.transcript) {
+          if (u.isPartial || u.syncedToServer || !u.text.trim()) continue;
+          const serverId = await persistUtteranceToServer(state.sessionId, u);
+          if (serverId && serverId !== u.id) {
+            state.reconcileUtteranceId(u.id, serverId);
+          } else if (serverId) {
+            state.markUtteranceSynced(u.id);
+          }
+        }
+      }
       reset();
       const url = new URL(window.location.href);
       url.searchParams.delete("session");
@@ -150,18 +164,24 @@ function ClinicTranslatorApp(): React.ReactElement {
   );
 
   return (
-    <main className="flex h-screen flex-col">
-      <header className="flex items-center justify-between gap-4 border-b px-4 py-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Clinic Translator</h1>
+    <main className="flex h-[100dvh] flex-col overflow-hidden">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:gap-4 sm:px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          <h1 className="truncate text-base font-semibold sm:text-lg">Clinic Translator</h1>
           {sessionId ? (
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
               session {sessionId.slice(0, 8)}
               {session.data?.startedAt ? ` · started ${new Date(session.data.startedAt).toLocaleTimeString()}` : ""}
             </span>
           ) : null}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <Link href="/app/sessions" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Sessions
+          </Link>
+          <Link href="/settings" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Settings
+          </Link>
           <StatusPill voice="Achernar" />
           {sessionId ? (
             <Button
@@ -184,13 +204,14 @@ function ClinicTranslatorApp(): React.ReactElement {
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-2 divide-x">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 divide-y lg:grid-cols-2 lg:grid-rows-1 lg:divide-x lg:divide-y-0">
         <PatientPane
           urgency={urgency}
           onUrgencyChange={onUrgencyChange}
           autoStart={Boolean(sessionId)}
+          className="min-h-0"
         />
-        <StaffPane />
+        <StaffPane className="min-h-0" />
       </div>
     </main>
   );

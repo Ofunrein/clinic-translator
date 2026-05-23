@@ -8,6 +8,10 @@
 // observed p50 first-token / first-audio latency for the cheapest tier.
 
 import type { ProviderRegistry, ProviderCatalogEntry } from "./types";
+import {
+  DEEPGRAM_AURA_ES_VOICES,
+  deepgramEsVoiceLabel,
+} from "./deepgram-voices";
 
 // ----- STT catalog -----
 const stt: Record<string, ProviderCatalogEntry> = {
@@ -170,10 +174,51 @@ const translate: Record<string, ProviderCatalogEntry> = {
     dialect: ["all"],
     notes: "Dev-mode only. Direct OpenAI (no BAA); swap to Bedrock for prod.",
   },
+  groq: {
+    key: "groq",
+    name: "Groq",
+    models: [
+      {
+        id: "llama-3.3-70b-versatile",
+        label: "Llama 3.3 70B Versatile",
+        costPer1k: 0.00059,
+        baseLatencyMs: 220,
+      },
+      {
+        id: "llama-3.1-8b-instant",
+        label: "Llama 3.1 8B Instant",
+        costPer1k: 0.00005,
+        baseLatencyMs: 120,
+      },
+    ],
+    voices: [],
+    engines: [],
+    baaTier: "enterprise-only",
+    requiresBaa: false,
+    dialect: ["all"],
+    notes: "Translation and AI suggestions via GROQ_API_KEY.",
+  },
 };
 
 // ----- TTS catalog -----
 const tts: Record<string, ProviderCatalogEntry> = {
+  deepgram: {
+    key: "deepgram",
+    name: "Deepgram Aura",
+    models: [],
+    voices: DEEPGRAM_AURA_ES_VOICES.map((v) => ({
+      id: v.id,
+      label: deepgramEsVoiceLabel(v),
+      engine: "aura-2",
+      costPer1kChars: 0.030,
+      baseLatencyMs: 180,
+    })),
+    engines: [{ id: "aura-2", label: "Aura 2" }],
+    baaTier: "covered",
+    requiresBaa: true,
+    dialect: ["mx", "cen", "car", "all"],
+    notes: "Same DEEPGRAM_API_KEY as Nova STT. Sub-200ms streaming TTS.",
+  },
   polly: {
     key: "polly",
     name: "AWS Polly",
@@ -333,6 +378,7 @@ const suggest: Record<string, ProviderCatalogEntry> = {
   bedrock: translate.bedrock,
   "vertex-gemini": translate["vertex-gemini"],
   "azure-openai": translate["azure-openai"],
+  groq: translate.groq,
   openai: translate.openai,
 };
 

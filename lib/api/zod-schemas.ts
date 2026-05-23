@@ -147,9 +147,16 @@ export const translateProviderSchema = z.discriminatedUnion("provider", [
   z.object({ provider: z.literal("vertex-gemini"), model: z.string().min(1).max(128) }),
   z.object({ provider: z.literal("azure-openai"), model: z.string().min(1).max(128) }),
   z.object({ provider: z.literal("deepl"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("openai"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("groq"), model: z.string().min(1).max(128) }),
 ]);
 
 export const ttsProviderSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("deepgram"),
+    voice: z.string().min(1).max(64),
+    engine: z.literal("aura-2"),
+  }),
   z.object({
     provider: z.literal("polly"),
     voice: z.string().min(1).max(64),
@@ -181,6 +188,7 @@ export const suggestProviderSchema = z.discriminatedUnion("provider", [
   z.object({ provider: z.literal("bedrock"), model: z.string().min(1).max(128) }),
   z.object({ provider: z.literal("vertex-gemini"), model: z.string().min(1).max(128) }),
   z.object({ provider: z.literal("azure-openai"), model: z.string().min(1).max(128) }),
+  z.object({ provider: z.literal("groq"), model: z.string().min(1).max(128) }),
 ]);
 
 export const providerConfigSchema = z.object({
@@ -197,6 +205,8 @@ export const escalationRulesSchema = z.object({
   keywords: z.array(z.string().min(1).max(64)).max(64),
   confidenceFloor: z.number().min(0).max(1),
   categories: z.array(z.string().min(1).max(32)).max(16).optional(),
+  previewHoldSec: z.number().min(0).max(60).optional(),
+  autoSendPreview: z.boolean().optional(),
 });
 
 export const clinicSettingsSchema = z.object({
@@ -213,6 +223,11 @@ export const clinicSettingsSchema = z.object({
   dialect: clinicDialectSchema,
   clinicName: z.string().min(1).max(120),
   clinicHours: z.string().min(1).max(2000),
+  clinicServices: z.array(z.string().min(1).max(200)).max(64),
+  clinicAfterHours: z.string().max(2000).nullable().optional(),
+  clinicTransferPhone: z.string().max(32).nullable().optional(),
+  clinicPolicyNotes: z.string().max(4000).nullable().optional(),
+  clinicFaqBullets: z.array(z.string().min(1).max(500)).max(32),
   escalationRules: escalationRulesSchema,
 });
 export type ClinicSettingsInput = z.infer<typeof clinicSettingsSchema>;

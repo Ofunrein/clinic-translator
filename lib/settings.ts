@@ -23,23 +23,16 @@ import type {
   TtsProvider,
   SuggestProvider,
 } from "@/lib/providers/types";
+import {
+  DEFAULT_ESCALATION_RULES,
+  normalizeEscalationRules,
+} from "@/lib/escalation-rules";
+import { DEFAULT_CLINIC } from "@/lib/clinic-prompts";
 
 /** Single-tenant placeholder until we wire multi-clinic auth. */
 export const DEFAULT_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
 
-const DEFAULT_ESCALATION: EscalationRules = {
-  keywords: [
-    "chest pain",
-    "shortness of breath",
-    "suicide",
-    "bleeding",
-    "stroke",
-    "overdose",
-    "allergic reaction",
-  ],
-  confidenceFloor: 0.6,
-  categories: ["clinical", "billing"],
-};
+const DEFAULT_ESCALATION: EscalationRules = DEFAULT_ESCALATION_RULES;
 
 const CACHE_TTL_MS = 30_000;
 interface CacheEntry {
@@ -49,13 +42,31 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 function freshFromPreset(): ProviderConfig {
-  // Dev-mode default: the whole stack runs off OPENAI_API_KEY so engineers
-  // can boot the app with one secret. Production rows switch via the admin
-  // settings UI to `balanced`/`fast`/`accurate` (Bedrock + Deepgram + Polly
-  // or Google TTS). The dev-openai preset is persisted with
-  // `latencyMode: "balanced"` because the DB enum doesn't include the dev
-  // mode — only the provider blobs change.
-  return applyPreset("dev-openai");
+  return applyPreset("balanced");
+}
+
+function ensureSupportedStack(config: ProviderConfig): ProviderConfig {
+  const preset =
+    LATENCY_PRESETS[config.latencyMode] ?? LATENCY_PRESETS.balanced;
+  return {
+    ...config,
+    stt:
+      config.stt.provider === "deepgram"
+        ? config.stt
+        : preset.stt,
+    tts:
+      config.tts.provider === "deepgram"
+        ? config.tts
+        : preset.tts,
+    translate:
+      config.translate.provider === "groq"
+        ? config.translate
+        : preset.translate,
+    suggest:
+      config.suggest.provider === "groq"
+        ? config.suggest
+        : preset.suggest,
+  };
 }
 
 function defaultRow(clinicId: string): typeof clinicSettings.$inferInsert {
@@ -75,6 +86,11 @@ function defaultRow(clinicId: string): typeof clinicSettings.$inferInsert {
     dialect: "mx",
     clinicName: "Riverside Family Clinic",
     clinicHours: "Monday–Friday, 8:00 AM to 5:00 PM Central",
+    clinicServices: [...DEFAULT_CLINIC.services],
+    clinicAfterHours: DEFAULT_CLINIC.hours.afterHours ?? null,
+    clinicTransferPhone: DEFAULT_CLINIC.transferPhone ?? null,
+    clinicPolicyNotes: DEFAULT_CLINIC.policyNotes ?? null,
+    clinicFaqBullets: [],
     escalationRules: DEFAULT_ESCALATION,
   };
 }
@@ -124,6 +140,11 @@ export interface ClinicSettingsPatch {
   dialect?: "mx" | "cen" | "car" | "other";
   clinicName?: string;
   clinicHours?: string;
+  clinicServices?: string[];
+  clinicAfterHours?: string | null;
+  clinicTransferPhone?: string | null;
+  clinicPolicyNotes?: string | null;
+  clinicFaqBullets?: string[];
   escalationRules?: EscalationRules;
 }
 
@@ -163,9 +184,12 @@ export function rowToProviderConfig(row: ClinicSettings): ProviderConfig {
   };
 }
 
+/** Re-export for routes that already import from settings. */
+export { rowToClinicConfig } from "@/lib/clinic-knowledge";
+
 /** For routes that need the full clinic config (prompts, escalation, etc). */
 export function rowToClinicBlob(row: ClinicSettings): ClinicConfigBlob {
-  const escalation = row.escalationRules as EscalationRules;
+  const escalation = normalizeEscalationRules(row.escalationRules as EscalationRules);
   return {
     providers: rowToProviderConfig(row),
     aiAssist: {
@@ -187,15 +211,15 @@ export function rowToClinicBlob(row: ClinicSettings): ClinicConfigBlob {
   };
 }
 
-/** Read the active config; falls back to dev-openai preset on any error. */
+/** Read the active config; falls back to balanced preset on any error. */
 export async function getActiveProviderConfig(
   clinicId: string = DEFAULT_CLINIC_ID,
 ): Promise<ProviderConfig> {
   try {
     const row = await getClinicSettings(clinicId);
-    return rowToProviderConfig(row);
+    return ensureSupportedStack(rowToProviderConfig(row));
   } catch {
-    return LATENCY_PRESETS["dev-openai"];
+    return ensureSupportedStack(LATENCY_PRESETS.balanced);
   }
 }
 

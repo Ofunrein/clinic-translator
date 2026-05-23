@@ -43,10 +43,10 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(url);
   }
 
-  // Unauthenticated user hitting a protected route → login.
+  // Unauthenticated user hitting a protected route → landing page with next param.
   if (!token && isProtectedPath(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }

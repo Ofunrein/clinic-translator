@@ -1,12 +1,21 @@
 import * as React from "react";
-import Link from "next/link";
+import { AuthModal, HeroSignUpButton, HeroSignInButton, CTASignUpButton, CTASignInButton } from "@/components/auth-modal";
 
-export default function LandingPage(): React.JSX.Element {
+interface LandingPageProps {
+  searchParams: Promise<{ next?: string; signup?: string }>;
+}
+
+export default async function LandingPage({ searchParams }: LandingPageProps): Promise<React.JSX.Element> {
+  const { next, signup } = await searchParams;
+  const callbackUrl = next && next.startsWith("/") ? next : "/app";
+  const initialOpen = Boolean(next || signup);
+  const defaultTab = signup ? "signup" : "signin";
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-600 text-white text-sm font-bold">
               CT
@@ -14,18 +23,7 @@ export default function LandingPage(): React.JSX.Element {
             <span className="font-semibold text-slate-900">Clinic Translator</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 transition-colors"
-            >
-              Get started
-            </Link>
+            <AuthModal className="flex items-center gap-3" initialOpen={initialOpen} defaultTab={defaultTab as "signin" | "signup"} />
           </div>
         </div>
       </nav>
@@ -49,18 +47,8 @@ export default function LandingPage(): React.JSX.Element {
             Powered by AI, built for healthcare, secure by design.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link
-              href="/signup"
-              className="rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all hover:shadow-cyan-300"
-            >
-              Start free
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-xl border border-slate-200 bg-white px-8 py-3.5 text-base font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
-            >
-              Sign in →
-            </Link>
+            <HeroSignUpButton />
+            <HeroSignInButton />
           </div>
 
           {/* Mock UI card */}
@@ -72,7 +60,7 @@ export default function LandingPage(): React.JSX.Element {
                 <div className="h-3 w-3 rounded-full bg-green-400" />
                 <span className="ml-3 text-xs text-slate-400">Clinic Translator — live session</span>
               </div>
-              <div className="grid grid-cols-2 divide-x divide-slate-100">
+              <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                 <div className="p-5">
                   <div className="mb-3 flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -192,18 +180,8 @@ export default function LandingPage(): React.JSX.Element {
             Sign up with your clinic email — no credit card required.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link
-              href="/signup"
-              className="rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all"
-            >
-              Create free account
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-xl border border-slate-200 px-8 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Sign in
-            </Link>
+            <CTASignUpButton />
+            <CTASignInButton />
           </div>
         </div>
       </section>

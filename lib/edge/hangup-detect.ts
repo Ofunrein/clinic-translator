@@ -22,8 +22,8 @@ export interface HangupDetectorOptions {
 }
 
 export const HANGUP_DEFAULTS = {
-  silenceMs: 60_000,
-  autoConfirmMs: 30_000,
+  silenceMs: 300_000,   // 5 min silence before prompt
+  autoConfirmMs: 300_000, // 5 more min before auto-end
 } as const;
 
 export interface HangupDetectorState {

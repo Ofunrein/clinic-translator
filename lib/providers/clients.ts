@@ -28,6 +28,7 @@ import type {
 import { synthesizePolly } from "./clients/polly";
 import { synthesizeCartesia } from "./clients/cartesia";
 import { synthesizeOpenAi } from "./clients/openai-tts";
+import { synthesizeDeepgram } from "./clients/deepgram-tts";
 import { synthesizeElevenLabs } from "./clients/elevenlabs";
 import { translateVertex, suggestVertex } from "./clients/vertex-gemini";
 import { translateAzure, suggestAzure } from "./clients/azure-openai";
@@ -43,6 +44,7 @@ import {
   synthesizeOpenai,
   suggestReplyOpenai,
 } from "./clients/openai";
+import { suggestReplyGroq, translateGroq } from "./clients/groq";
 
 export type TranslateResult = Awaited<ReturnType<typeof translateBedrock>>;
 export type SuggestStreamEvent = BedrockSuggestStreamEvent;
@@ -153,6 +155,28 @@ export async function translate(args: DispatchTranslateArgs): Promise<TranslateR
         })),
       };
     }
+    case "groq": {
+      const dialect: Dialect = rest.dialect ?? "all";
+      const hits = rest.glossaryHits ?? findGlossaryHits(rest.text, dialect);
+      const out = await translateGroq({
+        text: rest.text,
+        src: rest.src,
+        dst: rest.dst,
+        model: config.model,
+        glossaryHits: hits.map((h) => ({
+          en: h.term.en,
+          es: h.term.es,
+        })),
+      });
+      return {
+        translation: out.translation,
+        glossary_hits: hits.map((h) => ({
+          en: h.term.en,
+          es: h.term.es,
+          category: h.term.category,
+        })),
+      };
+    }
     default: {
       const _exhaustive: never = config;
       void _exhaustive;
@@ -172,6 +196,8 @@ export async function synthesize(
 ): Promise<SynthesizeResult> {
   const { text, config } = args;
   switch (config.provider) {
+    case "deepgram":
+      return synthesizeDeepgram({ text, voice: config.voice, engine: config.engine });
     case "google-tts":
       return synthesizeGoogle({ text, voice: config.voice });
     case "polly":
@@ -229,6 +255,16 @@ export async function* suggestReply(
         transcript: rest.transcript,
         clinicContext: rest.clinicContext,
         dialect: rest.dialect,
+      })) {
+        yield ev;
+      }
+      return;
+    case "groq":
+      for await (const ev of suggestReplyGroq({
+        transcript: rest.transcript,
+        clinicContext: rest.clinicContext,
+        dialect: rest.dialect,
+        model: config.model,
       })) {
         yield ev;
       }

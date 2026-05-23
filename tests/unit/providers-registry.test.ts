@@ -57,15 +57,16 @@ describe("LATENCY_PRESETS", () => {
     });
   }
 
-  it("balanced preset matches spec defaults (Deepgram + Haiku 4.5 + Polly Generative Lupe)", () => {
+  it("balanced preset matches spec defaults (Deepgram STT + Groq + Deepgram Aura TTS)", () => {
     const cfg = LATENCY_PRESETS.balanced;
     expect(cfg.stt.provider).toBe("deepgram");
     expect(cfg.stt.model).toBe("nova-3");
-    expect(cfg.translate.provider).toBe("bedrock");
-    expect(cfg.translate.model).toBe("anthropic.claude-haiku-4-5-v1:0");
-    expect(cfg.tts.provider).toBe("polly");
-    expect(cfg.tts.voice).toBe("Lupe");
-    expect(cfg.tts.engine).toBe("generative");
+    expect(cfg.translate.provider).toBe("groq");
+    expect(cfg.translate.model).toBe("llama-3.3-70b-versatile");
+    expect(cfg.suggest.provider).toBe("groq");
+    expect(cfg.tts.provider).toBe("deepgram");
+    expect(cfg.tts.voice).toBe("aura-2-javier-es");
+    expect(cfg.tts.engine).toBe("aura-2");
     expect(cfg.latencyMode).toBe("balanced");
     expect(cfg.realtimeMode).toBe("text-middleman");
   });
@@ -74,6 +75,6 @@ describe("LATENCY_PRESETS", () => {
     const a: ProviderConfig = applyPreset("balanced");
     a.translate.model = "tampered";
     const b: ProviderConfig = applyPreset("balanced");
-    expect(b.translate.model).toBe("anthropic.claude-haiku-4-5-v1:0");
+    expect(b.translate.model).toBe("llama-3.3-70b-versatile");
   });
 });

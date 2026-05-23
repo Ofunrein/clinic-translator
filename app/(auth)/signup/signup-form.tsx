@@ -108,6 +108,8 @@ function signupErrorMessage(code: string | undefined): string {
       return "Password must be at least 8 characters.";
     case "missing_fields":
       return "Email and password are required.";
+    case "db_error":
+      return "A server error occurred. Please try again in a moment.";
     default:
       return "Something went wrong. Please try again.";
   }

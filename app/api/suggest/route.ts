@@ -23,6 +23,7 @@ import {
 } from "@/lib/anthropic";
 import { suggestReply as dispatchSuggestReply } from "@/lib/providers/clients";
 import { getClinicSettings, rowToClinicBlob, getActiveProviderConfig } from "@/lib/settings";
+import { rowToClinicConfig } from "@/lib/clinic-knowledge";
 import { DEFAULT_CLINIC, type ClinicConfig } from "@/lib/clinic-prompts";
 import type { Dialect } from "@/lib/medical-glossary";
 import { requireUser } from "@/lib/api/auth";
@@ -52,16 +53,9 @@ function isDialect(d: string | null | undefined): d is Dialect {
 }
 
 async function resolveClinicConfig(): Promise<ClinicConfig> {
-  // Track C2 — read live row from clinic_settings; fall back to the static
-  // DEFAULT_CLINIC on any error so a degraded DB doesn't kill suggestions.
   try {
     const row = await getClinicSettings();
-    const blob = rowToClinicBlob(row);
-    return {
-      name: blob.clinic.name,
-      hours: { weekly: blob.clinic.hours },
-      services: DEFAULT_CLINIC.services,
-    };
+    return rowToClinicConfig(row);
   } catch {
     return DEFAULT_CLINIC;
   }

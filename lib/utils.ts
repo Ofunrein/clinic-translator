@@ -44,11 +44,21 @@ export function isBrowser(): boolean {
   return typeof window !== "undefined" && typeof window.indexedDB !== "undefined";
 }
 
-/** Detect macOS so the StaffPane can show ⌘+Enter vs Ctrl+Enter. */
+/** Detect macOS so UI can prefer ⌘ in labels. */
 export function isMac(): boolean {
   if (typeof navigator === "undefined") return false;
   const platform = (navigator as Navigator & { userAgentData?: { platform?: string } })
     .userAgentData?.platform;
   if (platform) return platform.toLowerCase().includes("mac");
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent || "");
+}
+
+/** Translate / send chord — works on Mac (⌘) and Windows/Linux (Ctrl). */
+export function isSubmitChord(ev: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey">): boolean {
+  return ev.key === "Enter" && (ev.metaKey || ev.ctrlKey);
+}
+
+/** Keyboard hint shown next to staff compose actions. */
+export function submitChordLabel(): string {
+  return isMac() ? "⌘+Enter / Ctrl+Enter" : "Ctrl+Enter / ⌘+Enter";
 }

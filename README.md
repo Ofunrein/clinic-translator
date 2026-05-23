@@ -6,7 +6,7 @@ Spec: [`docs/superpowers/specs/2026-05-20-clinic-translator-design.md`](docs/sup
 
 ## Stack
 
-Next.js 15 (App Router) · React 19 · TypeScript strict · Tailwind v4 · shadcn/ui · Drizzle ORM · Supabase Postgres · AWS Bedrock Claude · Deepgram STT · Google Cloud TTS · Sentry · Vercel.
+Next.js 15 (App Router) · React 19 · TypeScript strict · Tailwind v4 · shadcn/ui · Drizzle ORM · Neon Postgres · NextAuth v5 · AWS Bedrock Claude · Deepgram STT+TTS · Sentry · Vercel.
 
 ## Dev
 
@@ -34,13 +34,18 @@ Wave 1: scaffold only. Feature implementation tracked per spec §13 milestones.
 ```sh
 git clone <repo-url> clinic-translator
 cd clinic-translator
-cp .env.example .env.local        # fill Supabase, Bedrock, Deepgram, GCP, Sentry, allowlist
+cp .env.example .env.local        # fill Neon, Deepgram, OpenAI/Bedrock, auth, allowlist
 pnpm install                      # or `npm install`
 pnpm db:migrate                   # apply Drizzle migrations
 pnpm dev                          # http://localhost:3000
 ```
 
-Required env keys for auth: `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+Required env keys for auth: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
 `CLINIC_EMAIL_ALLOWLIST` (comma-separated, supports `*@clinic.com`
-wildcards). Sentry is opt-in via `SENTRY_DSN`.
+wildcards). Use `/api/dev-login` in development to skip Google OAuth.
+
+For the default dev preset: `DEEPGRAM_API_KEY` (STT + TTS) and `OPENAI_API_KEY` (translate).
+Bedrock keys are only needed for production presets (fast/balanced/accurate with Claude).
+
+Sentry is opt-in via `SENTRY_DSN`.

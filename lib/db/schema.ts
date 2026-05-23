@@ -226,6 +226,11 @@ export const clinicSettings = pgTable(
     clinicHours: text("clinic_hours")
       .notNull()
       .default("Monday–Friday, 8:00 AM to 5:00 PM Central"),
+    clinicServices: jsonb("clinic_services").$type<string[]>().notNull(),
+    clinicAfterHours: text("clinic_after_hours"),
+    clinicTransferPhone: text("clinic_transfer_phone"),
+    clinicPolicyNotes: text("clinic_policy_notes"),
+    clinicFaqBullets: jsonb("clinic_faq_bullets").$type<string[]>().notNull(),
     escalationRules: jsonb("escalation_rules").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedBy: uuid("updated_by").references(() => staffUsers.id, {

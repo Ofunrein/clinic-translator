@@ -1,9 +1,8 @@
 // Track C2. POST /api/tts/preview — synthesize a fixed sample sentence
 // using the provided TTS provider config. Used by the admin UI's voice
-// preview button. Admin-only.
+// preview button. Any signed-in staff user may preview (no PHI in sample).
 
 import type { z } from "zod";
-import { requireRole, AuthorizationError } from "@/lib/auth/roles";
 import { requireUser } from "@/lib/api/auth";
 import { synthesize } from "@/lib/providers/clients";
 import { ttsPreviewBodySchema } from "@/lib/api/zod-schemas";
@@ -21,7 +20,6 @@ const DEFAULT_SAMPLE =
 export async function POST(req: Request): Promise<Response> {
   const traceId = newTraceId();
   try {
-    await requireRole(req, ["admin"]);
     await requireUser(req);
 
     const json: unknown = await req.json().catch(() => null);
@@ -53,9 +51,6 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
   } catch (err) {
-    if (err instanceof AuthorizationError) {
-      return errorToResponse(err);
-    }
     return errorToResponse(err);
   }
 }
