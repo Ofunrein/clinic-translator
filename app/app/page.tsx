@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { AppNav } from "@/components/AppNav";
+import { ClinicLogo } from "@/components/ClinicLogo";
 import {
   QueryClient,
   QueryClientProvider,
@@ -167,7 +168,7 @@ function ClinicTranslatorApp(): React.ReactElement {
     <main className="flex h-[100dvh] flex-col overflow-hidden">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:gap-4 sm:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <h1 className="truncate text-base font-semibold sm:text-lg">Clinic Translator</h1>
+          <ClinicLogo size="sm" className="min-w-0 shrink" />
           {sessionId ? (
             <span className="hidden text-xs text-muted-foreground sm:inline">
               session {sessionId.slice(0, 8)}

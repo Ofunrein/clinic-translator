@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/AppNav";
+import { ClinicLogo } from "@/components/ClinicLogo";
 
 export default function SessionsLayout({
   children,
@@ -9,7 +10,7 @@ export default function SessionsLayout({
     <div className="min-h-[100dvh] overflow-x-hidden bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <span className="text-sm font-semibold tracking-tight">Clinic Translator</span>
+          <ClinicLogo size="sm" />
           <AppNav />
         </div>
       </header>

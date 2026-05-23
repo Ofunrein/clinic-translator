@@ -11,8 +11,26 @@ import {
 } from "lucide-react";
 import { AuthModal, HeroSignUpButton, HeroSignInButton, CTASignUpButton, CTASignInButton } from "@/components/auth-modal";
 import { AppNav } from "@/components/AppNav";
+import { ClinicLogo } from "@/components/ClinicLogo";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth } from "@/lib/auth/config";
+import { cn } from "@/lib/utils";
+
+/** Landing cards: magenta wash, glow shadows, no outlines. */
+const landingCardClass = cn(
+  "rounded-2xl border-0",
+  "bg-gradient-to-br from-fuchsia-50 via-white to-pink-50 text-fuchsia-950",
+  "shadow-[0_10px_40px_-8px_rgba(217,70,239,0.45)]",
+  "dark:from-fuchsia-950/80 dark:via-fuchsia-950/55 dark:to-fuchsia-900/35 dark:text-fuchsia-50",
+  "dark:shadow-[0_12px_48px_-10px_rgba(217,70,239,0.55)]",
+  "transition-all duration-300 hover:-translate-y-1",
+  "hover:shadow-[0_20px_56px_-12px_rgba(217,70,239,0.55)]",
+  "dark:hover:shadow-[0_24px_64px_-12px_rgba(217,70,239,0.65)]",
+);
+
+const landingCardTitleClass = "text-base font-semibold text-fuchsia-950 dark:text-fuchsia-50";
+const landingCardBodyClass =
+  "text-sm leading-relaxed text-fuchsia-900/75 dark:text-fuchsia-100/75";
 
 interface LandingPageProps {
   searchParams: Promise<{ next?: string; signup?: string }>;
@@ -29,12 +47,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-600 text-white text-sm font-bold">
-              CT
-            </div>
-            <span className="font-semibold">Clinic Translator</span>
-          </div>
+          <ClinicLogo size="md" />
           <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
             <AppNav variant="light" showLinks={isSignedIn} />
             {isSignedIn ? null : (
@@ -69,44 +82,49 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
 
           {/* Mock UI card */}
           <div className="mx-auto mt-16 max-w-3xl">
-            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-slate-200 dark:shadow-black/40">
-              <div className="flex items-center gap-1.5 border-b border-border bg-muted px-5 py-3.5">
+            <div
+              className={cn(
+                landingCardClass,
+                "overflow-hidden hover:translate-y-0",
+              )}
+            >
+              <div className="flex items-center gap-1.5 bg-fuchsia-100/80 px-5 py-3.5 dark:bg-fuchsia-950/60">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div className="h-3 w-3 rounded-full bg-yellow-400" />
                 <div className="h-3 w-3 rounded-full bg-green-400" />
-                <span className="ml-3 text-xs text-muted-foreground">Clinic Translator — live session</span>
+                <span className="ml-3 text-xs text-fuchsia-800/70 dark:text-fuchsia-200/70">Clinic Translator — live session</span>
               </div>
-              <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="grid grid-cols-1 divide-y divide-fuchsia-200/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0 dark:divide-fuchsia-800/40">
                 <div className="p-5">
                   <div className="mb-3 flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Patient · Spanish</span>
+                    <span className="text-xs font-medium uppercase tracking-wide text-fuchsia-800/60 dark:text-fuchsia-200/60">Patient · Spanish</span>
                   </div>
                   <div className="space-y-2">
-                    <div className="rounded-lg bg-muted px-3 py-2.5 text-sm">
+                    <div className="rounded-lg bg-white/70 px-3 py-2.5 text-sm shadow-sm shadow-fuchsia-200/50 dark:bg-fuchsia-950/40 dark:shadow-fuchsia-900/30">
                       &ldquo;Me duele mucho el pecho desde ayer por la noche.&rdquo;
                     </div>
-                    <div className="rounded-lg bg-muted px-3 py-2.5 text-sm">
+                    <div className="rounded-lg bg-white/70 px-3 py-2.5 text-sm shadow-sm shadow-fuchsia-200/50 dark:bg-fuchsia-950/40 dark:shadow-fuchsia-900/30">
                       &ldquo;También tengo dificultad para respirar.&rdquo;
                     </div>
                   </div>
                 </div>
                 <div className="p-5">
                   <div className="mb-3 flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-cyan-500" />
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Staff · English</span>
+                    <div className="h-2 w-2 rounded-full bg-fuchsia-500" />
+                    <span className="text-xs font-medium uppercase tracking-wide text-fuchsia-800/60 dark:text-fuchsia-200/60">Staff · English</span>
                   </div>
                   <div className="space-y-2">
-                    <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5 text-sm dark:bg-cyan-950/40 dark:border-cyan-900">
+                    <div className="rounded-lg bg-fuchsia-100/80 px-3 py-2.5 text-sm shadow-sm shadow-fuchsia-300/40 dark:bg-fuchsia-900/50 dark:shadow-fuchsia-800/30">
                       &ldquo;My chest has been hurting a lot since last night.&rdquo;
                     </div>
-                    <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5 text-sm dark:bg-cyan-950/40 dark:border-cyan-900">
+                    <div className="rounded-lg bg-fuchsia-100/80 px-3 py-2.5 text-sm shadow-sm shadow-fuchsia-300/40 dark:bg-fuchsia-900/50 dark:shadow-fuchsia-800/30">
                       &ldquo;I&apos;m also having difficulty breathing.&rdquo;
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 border-t border-border bg-muted/50 px-5 py-3">
+              <div className="flex items-center gap-3 bg-fuchsia-100/50 px-5 py-3 dark:bg-fuchsia-950/50">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/50">
                   <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
                 </div>
@@ -209,12 +227,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
       <footer className="border-t border-border py-8">
         <div className="mx-auto max-w-6xl px-6">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-cyan-600 text-white text-xs font-bold">
-                CT
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">Clinic Translator</span>
-            </div>
+            <ClinicLogo size="sm" />
             <p className="text-xs text-muted-foreground">
               Authorized clinic staff only. All access is logged and audited.
             </p>
@@ -235,13 +248,13 @@ function FeatureCard({
   description: string;
 }): React.JSX.Element {
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className={landingCardClass}>
       <CardHeader>
-        <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg border border-cyan-600/20 bg-cyan-600/10 text-cyan-600 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-400">
+        <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-500/15 text-fuchsia-600 shadow-md shadow-fuchsia-500/25 dark:bg-fuchsia-400/20 dark:text-fuchsia-300 dark:shadow-fuchsia-500/30">
           <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
         </div>
-        <CardTitle className="text-base font-semibold">{title}</CardTitle>
-        <CardDescription className="leading-relaxed">{description}</CardDescription>
+        <CardTitle className={landingCardTitleClass}>{title}</CardTitle>
+        <CardDescription className={landingCardBodyClass}>{description}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -259,18 +272,18 @@ function StepCard({
   description: string;
 }): React.JSX.Element {
   return (
-    <Card>
+    <Card className={landingCardClass}>
       <CardHeader>
         <div className="mb-1 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-600 text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/40 dark:bg-fuchsia-500 dark:shadow-fuchsia-500/50">
             <Icon className="h-5 w-5" aria-hidden />
           </div>
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium uppercase tracking-wide text-fuchsia-700/70 dark:text-fuchsia-200/70">
             Step {number}
           </span>
         </div>
-        <CardTitle className="text-base font-semibold">{title}</CardTitle>
-        <CardDescription className="leading-relaxed">{description}</CardDescription>
+        <CardTitle className={landingCardTitleClass}>{title}</CardTitle>
+        <CardDescription className={landingCardBodyClass}>{description}</CardDescription>
       </CardHeader>
     </Card>
   );
