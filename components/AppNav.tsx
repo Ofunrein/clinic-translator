@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -64,6 +65,23 @@ export function AppNav({
           })
         : null}
       <ThemeToggle />
+      {showLinks ? (
+        <button
+          type="button"
+          onClick={() => {
+            void signOut({ callbackUrl: "/" });
+          }}
+          className={cn(
+            "rounded-md border px-2.5 py-1 text-xs sm:text-sm transition-colors",
+            variant === "light"
+              ? "border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+          data-testid="sign-out"
+        >
+          Sign out
+        </button>
+      ) : null}
     </nav>
   );
 }
