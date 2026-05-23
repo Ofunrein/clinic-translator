@@ -220,6 +220,16 @@ export function PatientPane({
         <UrgencyFlag value={urgency} onChange={onUrgencyChange} />
         <div className="flex items-center gap-2">
           {stt.isStreaming ? (
+            <Button
+              size="sm"
+              variant={stt.muted ? "default" : "outline"}
+              onClick={() => stt.setMuted(!stt.muted)}
+              data-testid="mute-mic"
+            >
+              {stt.muted ? "Unmute mic" : "Mute mic"}
+            </Button>
+          ) : null}
+          {stt.isStreaming ? (
             <Button size="sm" variant="outline" onClick={() => stt.stop()}>
               Pause mic
             </Button>

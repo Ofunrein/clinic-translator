@@ -33,6 +33,10 @@ export interface UseSttResult {
   micMuted: boolean;
   /** True if `getUserMedia` rejected with a permission error. */
   permissionDenied: boolean;
+  /** True when staff has manually muted the mic via UI. */
+  muted: boolean;
+  /** Manually mute/unmute the mic without tearing down the WS. */
+  setMuted: (next: boolean) => void;
 }
 
 const TARGET_SR = 16000;
@@ -60,7 +64,18 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
   const [error, setError] = React.useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = React.useState(false);
   const [micMuted, setMicMuted] = React.useState(false);
+  const [muted, setMutedState] = React.useState(false);
   const [analyser, setAnalyser] = React.useState<AnalyserNode | null>(null);
+
+  const setMuted = React.useCallback((next: boolean): void => {
+    setMutedState(next);
+    const stream = internals.current.stream;
+    if (stream) {
+      stream.getAudioTracks().forEach((t) => {
+        t.enabled = !next;
+      });
+    }
+  }, []);
 
   // All long-lived refs go in one ref so cleanup is total.
   const internals = React.useRef<{
@@ -262,6 +277,9 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
 
     const i = internals.current;
     i.stream = stream;
+    if (muted) {
+      stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    }
 
     // Build the audio graph.
     const AC =
@@ -426,7 +444,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
       i.dgConnection = null;
       i.ws = null;
     };
-  }, [connectDg, deviceId, inputGain, mutedDb, mutedWindowMs, setStatus]);
+  }, [connectDg, deviceId, inputGain, mutedDb, mutedWindowMs, muted, setStatus]);
 
   React.useEffect(() => {
     return () => {
@@ -445,6 +463,8 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
     analyser,
     micMuted,
     permissionDenied,
+    muted,
+    setMuted,
   };
 }
 

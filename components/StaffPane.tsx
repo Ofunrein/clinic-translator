@@ -459,6 +459,16 @@ export function StaffPane({
             {AI_ASSIST_ENABLED && suggest.suggestion && !suggest.isStreaming ? (
               <ConfidenceDot confidence={suggest.confidence} />
             ) : null}
+            {tts.isSpeaking ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => playerRef.current?.bargeIn()}
+                data-testid="stop-tts"
+              >
+                Stop TTS
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="outline"
