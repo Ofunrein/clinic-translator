@@ -7,6 +7,9 @@ export interface DeepgramEsVoice {
   trait: string;
 }
 
+/** Default Spanish TTS voice for all latency presets and new clinics. */
+export const DEFAULT_DEEPGRAM_TTS_VOICE = "aura-2-olivia-es";
+
 /** All Aura-2 Spanish voices supported by Deepgram. */
 export const DEEPGRAM_AURA_ES_VOICES: readonly DeepgramEsVoice[] = [
   { id: "aura-2-javier-es", name: "Javier", region: "Mexican", trait: "professional" },

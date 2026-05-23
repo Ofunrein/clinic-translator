@@ -1,11 +1,18 @@
 // Track C2. Latency-mode presets — Deepgram voice + Groq text (translate + suggest).
 
 import type { LatencyPresetKey, ProviderConfig } from "./types";
+import { DEFAULT_DEEPGRAM_TTS_VOICE } from "./deepgram-voices";
+
+const DEFAULT_TTS = {
+  provider: "deepgram" as const,
+  voice: DEFAULT_DEEPGRAM_TTS_VOICE,
+  engine: "aura-2" as const,
+};
 
 const FAST: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
   translate: { provider: "groq", model: "llama-3.1-8b-instant" },
-  tts: { provider: "deepgram", voice: "aura-2-olivia-es", engine: "aura-2" },
+  tts: DEFAULT_TTS,
   suggest: { provider: "groq", model: "llama-3.1-8b-instant" },
   latencyMode: "fast",
   realtimeMode: "text-middleman",
@@ -14,7 +21,7 @@ const FAST: ProviderConfig = {
 const BALANCED: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
   translate: { provider: "groq", model: "llama-3.3-70b-versatile" },
-  tts: { provider: "deepgram", voice: "aura-2-javier-es", engine: "aura-2" },
+  tts: DEFAULT_TTS,
   suggest: { provider: "groq", model: "llama-3.3-70b-versatile" },
   latencyMode: "balanced",
   realtimeMode: "text-middleman",
@@ -23,11 +30,7 @@ const BALANCED: ProviderConfig = {
 const ACCURATE: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
   translate: { provider: "groq", model: "llama-3.3-70b-versatile" },
-  tts: {
-    provider: "deepgram",
-    voice: "aura-2-estrella-es",
-    engine: "aura-2",
-  },
+  tts: DEFAULT_TTS,
   suggest: { provider: "groq", model: "llama-3.3-70b-versatile" },
   latencyMode: "accurate",
   realtimeMode: "text-middleman",

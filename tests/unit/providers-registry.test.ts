@@ -65,7 +65,7 @@ describe("LATENCY_PRESETS", () => {
     expect(cfg.translate.model).toBe("llama-3.3-70b-versatile");
     expect(cfg.suggest.provider).toBe("groq");
     expect(cfg.tts.provider).toBe("deepgram");
-    expect(cfg.tts.voice).toBe("aura-2-javier-es");
+    expect(cfg.tts.voice).toBe("aura-2-olivia-es");
     expect(cfg.tts.engine).toBe("aura-2");
     expect(cfg.latencyMode).toBe("balanced");
     expect(cfg.realtimeMode).toBe("text-middleman");
