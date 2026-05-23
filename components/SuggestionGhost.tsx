@@ -61,7 +61,7 @@ export function SuggestionGhost(props: SuggestionGhostProps): React.ReactElement
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-0 px-3 py-2 text-sm",
+        "pointer-events-none absolute inset-0 overflow-hidden rounded-md px-3 py-2 text-sm",
         className,
       )}
       aria-hidden="true"
@@ -69,7 +69,7 @@ export function SuggestionGhost(props: SuggestionGhostProps): React.ReactElement
     >
       <span
         className={cn(
-          "whitespace-pre-wrap text-muted-foreground/70",
+          "line-clamp-2 whitespace-pre-wrap text-muted-foreground/70",
           isStreaming && "animate-pulse",
         )}
       >
