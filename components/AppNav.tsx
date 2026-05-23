@@ -37,7 +37,7 @@ export function AppNav({
 
   return (
     <nav
-      className={cn("flex flex-wrap items-center gap-2 sm:gap-3", className)}
+      className={cn("flex flex-wrap items-center gap-1.5 sm:gap-3", className)}
       aria-label="Main"
     >
       {showLinks
@@ -49,13 +49,13 @@ export function AppNav({
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "text-xs sm:text-sm transition-colors underline-offset-4 hover:underline",
+                  "rounded-md px-2 py-1 text-xs sm:px-0 sm:py-0 sm:text-sm transition-colors underline-offset-4 sm:hover:underline",
                   variant === "light"
                     ? isActive
                       ? "font-medium text-cyan-700 dark:text-cyan-400"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                     : isActive
-                      ? "font-medium text-foreground"
+                      ? "bg-muted font-medium text-foreground sm:bg-transparent"
                       : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -72,14 +72,16 @@ export function AppNav({
             void signOut({ callbackUrl: "/" });
           }}
           className={cn(
-            "rounded-md border px-2.5 py-1 text-xs sm:text-sm transition-colors",
+            "rounded-md border px-2 py-1 text-xs sm:px-2.5 sm:text-sm transition-colors",
             variant === "light"
               ? "border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
           data-testid="sign-out"
         >
-          Sign out
+          <span className="sm:hidden" aria-hidden>↪</span>
+          <span className="hidden sm:inline">Sign out</span>
+          <span className="sr-only sm:hidden">Sign out</span>
         </button>
       ) : null}
     </nav>

@@ -161,7 +161,7 @@ function ModalOverlay({
       style={{ backdropFilter: "blur(8px)", backgroundColor: "rgba(0,0,0,0.55)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative w-full max-w-sm rounded-2xl bg-[#0d1117] border border-white/10 shadow-2xl shadow-black/40 p-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm rounded-2xl bg-[#0d1117] border border-white/10 shadow-2xl shadow-black/40 p-5 sm:p-6 animate-in fade-in zoom-in-95 duration-200">
         {/* Close */}
         <button
           onClick={onClose}

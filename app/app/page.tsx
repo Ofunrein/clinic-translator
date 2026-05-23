@@ -164,50 +164,110 @@ function ClinicTranslatorApp(): React.ReactElement {
     [sessionId, setStatus],
   );
 
+  const [mobilePane, setMobilePane] = React.useState<"patient" | "staff">("patient");
+
   return (
     <main className="flex h-[100dvh] flex-col overflow-hidden">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:gap-4 sm:px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+      <header className="flex shrink-0 flex-col gap-2 border-b px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4">
+        <div className="flex min-w-0 items-center justify-between gap-2 sm:flex-1 sm:gap-3">
           <ClinicLogo size="sm" className="min-w-0 shrink" />
-          {sessionId ? (
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              session {sessionId.slice(0, 8)}
-              {session.data?.startedAt ? ` · started ${new Date(session.data.startedAt).toLocaleTimeString()}` : ""}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-2 sm:hidden">
+            <StatusPill />
+            {sessionId ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => endCall.mutate()}
+                disabled={endCall.isPending}
+              >
+                {endCall.isPending ? "End…" : "End"}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => startCall.mutate()}
+                disabled={startCall.isPending}
+              >
+                {startCall.isPending ? "…" : "Start"}
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        {sessionId ? (
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            session {sessionId.slice(0, 8)}
+            {session.data?.startedAt ? ` · started ${new Date(session.data.startedAt).toLocaleTimeString()}` : ""}
+          </span>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3">
           <AppNav />
-          <StatusPill />
-          {sessionId ? (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => endCall.mutate()}
-              disabled={endCall.isPending}
-            >
-              {endCall.isPending ? "Ending…" : "End Call"}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => startCall.mutate()}
-              disabled={startCall.isPending}
-            >
-              {startCall.isPending ? "Starting…" : "Start Call"}
-            </Button>
-          )}
+          <div className="hidden items-center gap-2 sm:flex sm:gap-3">
+            <StatusPill />
+            {sessionId ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => endCall.mutate()}
+                disabled={endCall.isPending}
+              >
+                {endCall.isPending ? "Ending…" : "End Call"}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => startCall.mutate()}
+                disabled={startCall.isPending}
+              >
+                {startCall.isPending ? "Starting…" : "Start Call"}
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 divide-y lg:grid-cols-2 lg:grid-rows-1 lg:divide-x lg:divide-y-0">
+      <div
+        role="tablist"
+        aria-label="Translator panes"
+        className="flex shrink-0 border-b lg:hidden"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobilePane === "patient"}
+          onClick={() => setMobilePane("patient")}
+          className={`flex-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+            mobilePane === "patient"
+              ? "border-cyan-600 text-foreground dark:border-cyan-400"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Patient
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobilePane === "staff"}
+          onClick={() => setMobilePane("staff")}
+          className={`flex-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+            mobilePane === "staff"
+              ? "border-cyan-600 text-foreground dark:border-cyan-400"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Staff
+        </button>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-2 lg:divide-x">
         <PatientPane
           urgency={urgency}
           onUrgencyChange={onUrgencyChange}
           autoStart={Boolean(sessionId)}
-          className="min-h-0"
+          className={`min-h-0 ${mobilePane === "patient" ? "" : "hidden"} lg:!flex`}
         />
-        <StaffPane className="min-h-0" />
+        <StaffPane
+          className={`min-h-0 ${mobilePane === "staff" ? "" : "hidden"} lg:!flex`}
+        />
       </div>
     </main>
   );
