@@ -39,7 +39,7 @@ export default async function RootLayout({
   const initialTheme = resolveInitialTheme({ cookieTheme, dbTheme });
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${initialTheme} ${logoSerif.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${initialTheme} ${logoSerif.variable ?? ""}`}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased overflow-x-hidden">
         <ThemeProvider initialTheme={initialTheme}>{children}</ThemeProvider>
       </body>

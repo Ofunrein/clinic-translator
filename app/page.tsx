@@ -1,4 +1,5 @@
 import * as React from "react";
+import { redirect } from "next/navigation";
 import { AuthModal, HeroSignUpButton, HeroSignInButton, CTASignUpButton, CTASignInButton } from "@/components/auth-modal";
 import { AppNav } from "@/components/AppNav";
 import { ClinicLogo } from "@/components/ClinicLogo";
@@ -11,9 +12,13 @@ interface LandingPageProps {
 
 export default async function LandingPage({ searchParams }: LandingPageProps): Promise<React.JSX.Element> {
   const [{ next, signup }, session] = await Promise.all([searchParams, auth()]);
+  const isSignedIn = Boolean(session?.user);
+  if (isSignedIn) {
+    const dest = next && next.startsWith("/") ? next : "/app";
+    redirect(dest);
+  }
   const initialOpen = Boolean(next || signup);
   const defaultTab = signup ? "signup" : "signin";
-  const isSignedIn = Boolean(session?.user);
 
   return (
     <div className="min-h-screen bg-background text-foreground">

@@ -40,12 +40,15 @@ export function MagneticCard({
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = ref.current;
       if (!el) return;
-      if (frame.current) cancelAnimationFrame(frame.current);
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
 
       frame.current = requestAnimationFrame(() => {
+        frame.current = null;
         const rect = el.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
         const px = x / rect.width - 0.5;
         const py = y / rect.height - 0.5;
 
@@ -70,7 +73,10 @@ export function MagneticCard({
 
   React.useEffect(() => {
     return () => {
-      if (frame.current) cancelAnimationFrame(frame.current);
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+        frame.current = null;
+      }
     };
   }, []);
 
