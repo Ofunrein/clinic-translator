@@ -1,6 +1,6 @@
 ## Learned User Preferences
 
-- HIPAA compliance is not a priority; optimize for cost over BAA-compliant vendor tiers.
+- HIPAA / PHI encryption is not used; transcript text is stored as UTF-8 plaintext in Postgres.
 - Prefer free or minimal fixed-cost hosting (Vercel Hobby, Neon free tier, pay-per-use AI only).
 - Chose NextAuth v5 with Drizzle on Neon over Supabase Auth to avoid Supabase Auth coupling and recurring cost.
 - Default voice path is Deepgram-only (Nova-3 STT + Aura-2 TTS); avoid Google/Polly TTS on default presets.

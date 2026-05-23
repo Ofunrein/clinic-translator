@@ -41,6 +41,27 @@ interface SuggestSseFrame {
   trace_id?: string;
 }
 
+function buildContextTurns(
+  transcript: ReadonlyArray<{
+    role: "patient" | "staff";
+    isPartial?: boolean;
+    text: string;
+    translation?: string;
+  }>,
+): Array<{ role: "patient" | "staff"; text: string }> {
+  return transcript
+    .filter((u) => !u.isPartial && u.text.trim())
+    .slice(-12)
+    .map((u) => ({
+      role: u.role,
+      text:
+        u.role === "patient"
+          ? (u.translation?.trim() || u.text.trim())
+          : u.text.trim(),
+    }))
+    .filter((t) => t.text.length > 0);
+}
+
 function findLastPatientFinal(
   transcript: ReadonlyArray<{
     id: string;
@@ -113,6 +134,7 @@ export function useSuggest(opts: { enabled?: boolean } = {}): UseSuggestResult {
     void streamSuggest({
       sessionId,
       utteranceId: lastPatientId,
+      contextTurns: buildContextTurns(transcript),
       signal: ac.signal,
       onToken: (tok) => {
         // Append tokens to the live draft. We don't trust per-token JSON —
@@ -145,7 +167,7 @@ export function useSuggest(opts: { enabled?: boolean } = {}): UseSuggestResult {
     return () => {
       ac.abort();
     };
-  }, [enabled, sessionId, lastPatientId, setSuggestion]);
+  }, [enabled, sessionId, lastPatientId, setSuggestion, transcript]);
 
   const accept = React.useCallback(async (): Promise<void> => {
     const id = useSessionStore.getState().suggestion.utteranceId;
@@ -181,6 +203,7 @@ export function useSuggest(opts: { enabled?: boolean } = {}): UseSuggestResult {
 interface StreamArgs {
   sessionId: string;
   utteranceId: string;
+  contextTurns: Array<{ role: "patient" | "staff"; text: string }>;
   signal: AbortSignal;
   onToken: (t: string) => void;
   onFinal: (f: FinalShape) => void;
@@ -196,6 +219,7 @@ async function streamSuggest(args: StreamArgs): Promise<void> {
       body: JSON.stringify({
         sessionId: args.sessionId,
         lastUtteranceId: args.utteranceId,
+        contextTurns: args.contextTurns,
       }),
       signal: args.signal,
     });

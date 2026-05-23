@@ -14,6 +14,8 @@ export interface UseSttOptions {
   url?: string;
   /** Override the mic device id. */
   deviceId?: string;
+  /** Linear gain applied after capture (default 2.5 for speakerphone / room pickup). */
+  inputGain?: number;
   /** RMS threshold in dB below which we consider the mic muted. */
   mutedDb?: number;
   /** Window in ms over which the mic must stay below threshold. */
@@ -36,10 +38,13 @@ export interface UseSttResult {
 const TARGET_SR = 16000;
 const CHUNK_MS = 100;
 const BACKOFF_MS = [250, 500, 1000, 2000, 4000];
+/** Boost quiet speakerphone / room pickup before Deepgram STT. */
+const DEFAULT_INPUT_GAIN = 2.5;
 
 export function useStt(opts: UseSttOptions = {}): UseSttResult {
   const {
     deviceId,
+    inputGain = DEFAULT_INPUT_GAIN,
     mutedDb = -50,
     mutedWindowMs = 8000,
   } = opts;
@@ -64,6 +69,8 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
     stream: MediaStream | null;
     audioCtx: AudioContext | null;
     sourceNode: MediaStreamAudioSourceNode | null;
+    gainNode: GainNode | null;
+    captureDest: MediaStreamAudioDestinationNode | null;
     workletNode: AudioWorkletNode | null;
     analyserNode: AnalyserNode | null;
     recorder: MediaRecorder | null;
@@ -78,6 +85,8 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
     stream: null,
     audioCtx: null,
     sourceNode: null,
+    gainNode: null,
+    captureDest: null,
     workletNode: null,
     analyserNode: null,
     recorder: null,
@@ -153,6 +162,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
               fetch("/api/translate", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
+                credentials: "include",
                 body: JSON.stringify({
                   text,
                   src: "es",
@@ -160,20 +170,29 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
                   ...(sessionId ? { sessionId } : {}),
                 }),
               })
-                .then((r) => (r.ok ? r.json() : null))
-                .then(
-                  (data: { translation?: string; utterance_id?: string } | null) => {
-                    if (!data?.translation) return;
-                    const serverId = data.utterance_id;
-                    if (serverId && serverId !== uttId) {
-                      reconcileUtteranceId(uttId, serverId);
-                      setTranslation(serverId, data.translation);
-                    } else {
-                      setTranslation(uttId, data.translation);
-                    }
-                  },
-                )
-                .catch(() => {});
+                .then(async (r) => {
+                  if (!r.ok) {
+                    setStatus("degraded", `translate failed (${r.status})`);
+                    return null;
+                  }
+                  return r.json() as Promise<{
+                    translation?: string;
+                    utterance_id?: string;
+                  } | null>;
+                })
+                .then((data) => {
+                  if (!data?.translation) return;
+                  const serverId = data.utterance_id;
+                  if (serverId && serverId !== uttId) {
+                    reconcileUtteranceId(uttId, serverId);
+                    setTranslation(serverId, data.translation);
+                  } else {
+                    setTranslation(uttId, data.translation);
+                  }
+                })
+                .catch(() => {
+                  setStatus("degraded", "translate request failed");
+                });
             }
           } else if (!d.is_final) {
             addPartial(text);
@@ -224,6 +243,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         },
         video: false,
       });
@@ -264,11 +284,20 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
 
     const source = audioCtx.createMediaStreamSource(stream);
     i.sourceNode = source;
+    const gain = audioCtx.createGain();
+    gain.gain.value = Math.max(0.5, Math.min(inputGain, 6));
+    i.gainNode = gain;
+    source.connect(gain);
+
     const an = audioCtx.createAnalyser();
     an.fftSize = 1024;
-    source.connect(an);
+    gain.connect(an);
     i.analyserNode = an;
     setAnalyser(an);
+
+    const captureDest = audioCtx.createMediaStreamDestination();
+    gain.connect(captureDest);
+    i.captureDest = captureDest;
 
     // RMS / muted-mic monitor via the analyser. Cheaper than a worklet.
     const tdBuf = new Uint8Array(an.fftSize);
@@ -313,7 +342,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
         node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
           sendChunk(ev.data);
         };
-        source.connect(node);
+        gain.connect(node);
         i.workletNode = node;
         usedWorklet = true;
       } catch (err: unknown) {
@@ -329,7 +358,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
           MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
             ? "audio/webm;codecs=opus"
             : "audio/webm";
-        const rec = new MediaRecorder(stream, { mimeType: mime });
+        const rec = new MediaRecorder(captureDest.stream, { mimeType: mime });
         rec.ondataavailable = async (e) => {
           if (e.data.size > 0) {
             const buf = await e.data.arrayBuffer();
@@ -366,6 +395,14 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
         } catch { /* noop */ }
       }
       i.workletNode = null;
+      if (i.captureDest) {
+        try { i.captureDest.disconnect(); } catch { /* noop */ }
+      }
+      i.captureDest = null;
+      if (i.gainNode) {
+        try { i.gainNode.disconnect(); } catch { /* noop */ }
+      }
+      i.gainNode = null;
       if (i.sourceNode) {
         try { i.sourceNode.disconnect(); } catch { /* noop */ }
       }
@@ -389,7 +426,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
       i.dgConnection = null;
       i.ws = null;
     };
-  }, [connectDg, deviceId, mutedDb, mutedWindowMs, setStatus]);
+  }, [connectDg, deviceId, inputGain, mutedDb, mutedWindowMs, setStatus]);
 
   React.useEffect(() => {
     return () => {

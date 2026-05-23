@@ -86,16 +86,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       throw err;
     }
 
-    // Persist (encrypted) when bound to a session.
+    // Persist when bound to a session — best effort only.
+    // Groq translation must still reach the client if insert fails.
+    let utteranceId: string | null = null;
     if (body.sessionId) {
       const ownerOk = await assertCallOwner(body.sessionId, user.userId);
       if (ownerOk) {
-        const role = body.src === "es" ? "patient" : "staff";
-        const [textEnc, transEnc] = await Promise.all([
-          encryptPHI(body.text),
-          encryptPHI(result.translation),
-        ]);
         try {
+          const role = body.src === "es" ? "patient" : "staff";
+          const [textEnc, transEnc] = await Promise.all([
+            encryptPHI(body.text),
+            encryptPHI(result.translation),
+          ]);
           const inserted = await db
             .insert(utterances)
             .values({
@@ -106,25 +108,19 @@ export async function POST(req: Request): Promise<NextResponse> {
               translationEnc: transEnc,
             })
             .returning({ id: utterances.id });
-          const newId = inserted[0]?.id ?? null;
+          utteranceId = inserted[0]?.id ?? null;
           await recordAudit({
             actorId: user.userId,
             action: "create",
             targetType: "utterance",
-            targetId: newId,
+            targetId: utteranceId,
           });
-          return NextResponse.json(
-            {
-              translation: result.translation,
-              glossary_hits: result.glossary_hits,
-              utterance_id: newId,
-              trace_id: traceId,
-            },
-            { status: 200 },
+        } catch (persistErr) {
+          console.error(
+            "[translate] persist failed",
+            traceId,
+            persistErr instanceof Error ? persistErr.name : "unknown",
           );
-        } catch {
-          // Don't fail the user-facing translate on a persistence error;
-          // the frontend has its own IndexedDB queue per spec §7.
         }
       }
     }
@@ -133,6 +129,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       {
         translation: result.translation,
         glossary_hits: result.glossary_hits,
+        ...(utteranceId ? { utterance_id: utteranceId } : {}),
         trace_id: traceId,
       },
       { status: 200 },

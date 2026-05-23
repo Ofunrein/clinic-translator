@@ -96,9 +96,16 @@ export type CreateGlossaryBody = z.infer<typeof createGlossaryBodySchema>;
 
 // ---- /api/suggest (Track C1) ----
 
+export const suggestContextTurnSchema = z.object({
+  role: z.enum(["patient", "staff"]),
+  text: z.string().min(1).max(8000),
+});
+
 export const suggestRequestSchema = z.object({
   sessionId: z.string().uuid(),
   lastUtteranceId: z.string().uuid(),
+  /** Client transcript fallback when DB persist/encrypt failed. */
+  contextTurns: z.array(suggestContextTurnSchema).max(24).optional(),
 });
 export type SuggestRequest = z.infer<typeof suggestRequestSchema>;
 

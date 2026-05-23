@@ -177,7 +177,11 @@ export async function POST(req: Request): Promise<Response> {
     return errorToResponse(err);
   }
 
-  let body: { sessionId: string; lastUtteranceId: string };
+  let body: {
+    sessionId: string;
+    lastUtteranceId: string;
+    contextTurns?: Array<{ role: "patient" | "staff"; text: string }>;
+  };
   try {
     const json: unknown = await req.json().catch(() => null);
     const parsed = suggestRequestSchema.safeParse(json);
@@ -196,8 +200,11 @@ export async function POST(req: Request): Promise<Response> {
     return errorToResponse(err);
   }
 
-  // Pre-flight: verify the utterance row exists, belongs to the session, and
-  // the caller owns the call.
+  const ctx = await loadCallContext(body.sessionId, user.userId);
+  if (!ctx) {
+    return errorToResponse(new ForbiddenError("call not accessible", { traceId }));
+  }
+
   const utteranceRows = await db
     .select({ id: utterances.id, callId: utterances.callId })
     .from(utterances)
@@ -205,14 +212,18 @@ export async function POST(req: Request): Promise<Response> {
       and(eq(utterances.id, body.lastUtteranceId), eq(utterances.callId, body.sessionId)),
     )
     .limit(1);
-  if (!utteranceRows[0]) {
+  const utteranceInDb = Boolean(utteranceRows[0]);
+  const clientTurns =
+    body.contextTurns?.map((t) => ({ role: t.role, text: t.text.trim() })).filter((t) => t.text) ??
+    [];
+  if (!utteranceInDb && clientTurns.length === 0) {
     return errorToResponse(new NotFoundError("utterance not found", { traceId }));
   }
 
-  const ctx = await loadCallContext(body.sessionId, user.userId);
-  if (!ctx) {
-    return errorToResponse(new ForbiddenError("call not accessible", { traceId }));
-  }
+  const transcript =
+    ctx.transcript.length > 0
+      ? ctx.transcript
+      : clientTurns.slice(Math.max(0, clientTurns.length - MAX_TURNS));
 
   const clinicContext = await resolveClinicConfig();
 
@@ -236,7 +247,7 @@ export async function POST(req: Request): Promise<Response> {
         let final: SuggestionResult | null = null;
         const active = await getActiveProviderConfig();
         for await (const event of dispatchSuggestReply({
-          transcript: ctx.transcript,
+          transcript,
           clinicContext,
           dialect: ctx.dialect,
           config: active.suggest,
@@ -248,7 +259,7 @@ export async function POST(req: Request): Promise<Response> {
             controller.enqueue(sseFrame({ final: event.final }));
           }
         }
-        if (final) {
+        if (final && utteranceInDb) {
           await persistSuggestion({
             utteranceId,
             result: final,
