@@ -193,11 +193,23 @@ export function errorToResponse(err: unknown): NextResponse<ApiErrorJson> {
     return NextResponse.json<ApiErrorJson>(body, { status: err.status });
   }
 
+  const rawMessage =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : "internal error";
+  const schemaStale = /column .* does not exist|relation .* does not exist/i.test(
+    rawMessage,
+  );
+
   return NextResponse.json<ApiErrorJson>(
     {
       code: "internal",
-      message: "internal error",
-      retryable: false,
+      message: schemaStale
+        ? "database schema out of date — redeploy or run npm run db:migrate"
+        : "internal error",
+      retryable: schemaStale,
       trace_id: traceId,
     },
     { status: 500 },

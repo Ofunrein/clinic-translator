@@ -24,9 +24,12 @@ type AppNavVariant = "app" | "light";
 
 export function AppNav({
   variant = "app",
+  showLinks = true,
   className,
 }: {
   variant?: AppNavVariant;
+  /** When false, only the theme toggle is shown (e.g. landing page for guests). */
+  showLinks?: boolean;
   className?: string;
 }): React.JSX.Element {
   const pathname = usePathname();
@@ -36,28 +39,30 @@ export function AppNav({
       className={cn("flex flex-wrap items-center gap-2 sm:gap-3", className)}
       aria-label="Main"
     >
-      {NAV_LINKS.map(({ href, label, active }) => {
-        const isActive = active(pathname);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "text-xs sm:text-sm transition-colors underline-offset-4 hover:underline",
-              variant === "light"
-                ? isActive
-                  ? "font-medium text-cyan-700 dark:text-cyan-400"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-                : isActive
-                  ? "font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {label}
-          </Link>
-        );
-      })}
+      {showLinks
+        ? NAV_LINKS.map(({ href, label, active }) => {
+            const isActive = active(pathname);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "text-xs sm:text-sm transition-colors underline-offset-4 hover:underline",
+                  variant === "light"
+                    ? isActive
+                      ? "font-medium text-cyan-700 dark:text-cyan-400"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                    : isActive
+                      ? "font-medium text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </Link>
+            );
+          })
+        : null}
       <ThemeToggle />
     </nav>
   );

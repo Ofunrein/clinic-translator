@@ -35,6 +35,7 @@ export const outcomeEnum = pgEnum("outcome", [
 export const utteranceRoleEnum = pgEnum("utterance_role", ["patient", "staff"]);
 export const langEnum = pgEnum("lang", ["es", "en"]);
 export const staffRoleEnum = pgEnum("staff_role", ["owner", "staff", "admin"]);
+export const themePreferenceEnum = pgEnum("theme_preference", ["light", "dark"]);
 export const glossaryCategoryEnum = pgEnum("glossary_category", [
   "medication",
   "symptom",
@@ -89,6 +90,7 @@ export const staffUsers = pgTable(
     email: text("email").notNull(),
     name: text("name"),
     role: staffRoleEnum("role").notNull().default("staff"),
+    themePreference: themePreferenceEnum("theme_preference").notNull().default("light"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

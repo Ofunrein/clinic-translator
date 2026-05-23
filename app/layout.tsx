@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { auth } from "@/lib/auth/config";
+import { THEME_COOKIE, resolveInitialTheme } from "@/lib/theme";
+import { getUserThemePreference } from "@/lib/user-theme";
 
 export const metadata: Metadata = {
   title: "Clinic Translator",
@@ -13,11 +17,23 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}): Promise<React.JSX.Element> {
+  const cookieStore = await cookies();
+  const cookieTheme = cookieStore.get(THEME_COOKIE)?.value;
+  const session = await auth();
+  const dbTheme = session?.userId
+    ? await getUserThemePreference(session.userId).catch(() => null)
+    : null;
+  const initialTheme = resolveInitialTheme({ cookieTheme, dbTheme });
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={initialTheme}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased overflow-x-hidden">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider initialTheme={initialTheme}>{children}</ThemeProvider>
       </body>
     </html>
   );

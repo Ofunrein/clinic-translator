@@ -1,16 +1,28 @@
 import * as React from "react";
+import {
+  BookOpen,
+  Globe,
+  Mic,
+  Phone,
+  RotateCcw,
+  ShieldCheck,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { AuthModal, HeroSignUpButton, HeroSignInButton, CTASignUpButton, CTASignInButton } from "@/components/auth-modal";
 import { AppNav } from "@/components/AppNav";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { auth } from "@/lib/auth/config";
 
 interface LandingPageProps {
   searchParams: Promise<{ next?: string; signup?: string }>;
 }
 
 export default async function LandingPage({ searchParams }: LandingPageProps): Promise<React.JSX.Element> {
-  const { next, signup } = await searchParams;
-  const callbackUrl = next && next.startsWith("/") ? next : "/app";
+  const [{ next, signup }, session] = await Promise.all([searchParams, auth()]);
   const initialOpen = Boolean(next || signup);
   const defaultTab = signup ? "signup" : "signin";
+  const isSignedIn = Boolean(session?.user);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -24,8 +36,10 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
             <span className="font-semibold">Clinic Translator</span>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
-            <AppNav variant="light" />
-            <AuthModal className="flex items-center gap-3" initialOpen={initialOpen} defaultTab={defaultTab as "signin" | "signup"} />
+            <AppNav variant="light" showLinks={isSignedIn} />
+            {isSignedIn ? null : (
+              <AuthModal className="flex items-center gap-3" initialOpen={initialOpen} defaultTab={defaultTab as "signin" | "signup"} />
+            )}
           </div>
         </div>
       </nav>
@@ -110,34 +124,34 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Built for clinical environments</h2>
             <p className="mt-4 text-muted-foreground">Everything your team needs to communicate clearly with every patient.</p>
           </div>
-          <div className="mt-16 grid gap-8 sm:grid-cols-3">
+          <div className="mt-16 grid gap-6 sm:grid-cols-3">
             <FeatureCard
-              icon="🎙️"
+              icon={Mic}
               title="Real-time translation"
               description="Speech is transcribed and translated in under 800ms. Patients speak naturally — staff read instantly."
             />
             <FeatureCard
-              icon="🔒"
+              icon={ShieldCheck}
               title="HIPAA compliant"
               description="All PHI is AES-256-GCM encrypted at rest. Every access is logged in the full audit trail."
             />
             <FeatureCard
-              icon="⚡"
+              icon={Zap}
               title="Urgency detection"
               description="AI automatically flags urgent phrases — pain severity, breathing issues, allergic reactions — so nothing is missed."
             />
             <FeatureCard
-              icon="📋"
+              icon={BookOpen}
               title="Medical glossary"
               description="A built-in glossary of medical terms, medications, and procedures keeps translations accurate."
             />
             <FeatureCard
-              icon="🌐"
+              icon={Globe}
               title="Spanish · English"
               description="Optimized for Spanish/English bilingual clinics with dialect-aware translation (Mx, Caribbean, Central American)."
             />
             <FeatureCard
-              icon="🔄"
+              icon={RotateCcw}
               title="Session recovery"
               description="Crash mid-call? The session auto-recovers from the URL so nothing is lost during a patient interaction."
             />
@@ -152,19 +166,22 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">How it works</h2>
             <p className="mt-4 text-muted-foreground">Three steps from open to done.</p>
           </div>
-          <div className="mt-16 grid gap-8 sm:grid-cols-3">
+          <div className="mt-16 grid gap-6 sm:grid-cols-3">
             <StepCard
               number="1"
+              icon={Phone}
               title="Start a call"
               description="Click Start Call. The system creates an encrypted session and begins listening."
             />
             <StepCard
               number="2"
+              icon={Mic}
               title="Speak naturally"
               description="Patient speaks in Spanish, staff in English. Each side sees the other's words translated in real time."
             />
             <StepCard
               number="3"
+              icon={RotateCcw}
               title="End and review"
               description="End the call when done. The full session transcript is securely stored and audited."
             />
@@ -209,39 +226,52 @@ export default async function LandingPage({ searchParams }: LandingPageProps): P
 }
 
 function FeatureCard({
-  icon,
+  icon: Icon,
   title,
   description,
 }: {
-  icon: string;
+  icon: LucideIcon;
   title: string;
   description: string;
 }): React.JSX.Element {
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
-      <div className="mb-4 text-3xl">{icon}</div>
-      <h3 className="mb-2 font-semibold">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
-    </div>
+    <Card className="transition-shadow hover:shadow-md">
+      <CardHeader>
+        <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg border border-cyan-600/20 bg-cyan-600/10 text-cyan-600 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-400">
+          <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+        </div>
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+        <CardDescription className="leading-relaxed">{description}</CardDescription>
+      </CardHeader>
+    </Card>
   );
 }
 
 function StepCard({
   number,
+  icon: Icon,
   title,
   description,
 }: {
   number: string;
+  icon: LucideIcon;
   title: string;
   description: string;
 }): React.JSX.Element {
   return (
-    <div className="relative rounded-2xl bg-card border border-border p-6 shadow-sm">
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-600 text-white font-bold text-lg">
-        {number}
-      </div>
-      <h3 className="mb-2 font-semibold">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
-    </div>
+    <Card>
+      <CardHeader>
+        <div className="mb-1 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-600 text-white">
+            <Icon className="h-5 w-5" aria-hidden />
+          </div>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Step {number}
+          </span>
+        </div>
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+        <CardDescription className="leading-relaxed">{description}</CardDescription>
+      </CardHeader>
+    </Card>
   );
 }

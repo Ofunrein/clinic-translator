@@ -5,6 +5,7 @@ export default {
   out: "./drizzle/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "",
+    // Neon: use direct connection for DDL migrations; pooled URL for runtime.
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? "",
   },
 } satisfies Config;
