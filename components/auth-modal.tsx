@@ -3,8 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { signIn } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MagneticButton } from "@/components/MagneticButton";
 
 type Tab = "signin" | "signup";
 
@@ -57,18 +56,22 @@ export function AuthModal({
     <>
       {/* Nav buttons */}
       <div className={className}>
-        <button
-          onClick={openSignIn}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Sign in
-        </button>
-        <button
-          onClick={openSignUp}
-          className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 transition-colors"
-        >
-          Get started
-        </button>
+        <MagneticButton intensity={7} className="rounded-lg">
+          <button
+            onClick={openSignIn}
+            className="relative rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign in
+          </button>
+        </MagneticButton>
+        <MagneticButton intensity={8} className="rounded-lg">
+          <button
+            onClick={openSignUp}
+            className="relative rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 transition-colors"
+          >
+            Get started
+          </button>
+        </MagneticButton>
       </div>
       <ModalOverlay open={open} onClose={close} tab={tab} onTabChange={setTab} />
     </>
@@ -81,12 +84,14 @@ export function HeroSignUpButton(): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all hover:shadow-cyan-300"
-      >
-        Start free
-      </button>
+      <MagneticButton intensity={10} className="rounded-xl">
+        <button
+          onClick={() => setOpen(true)}
+          className="relative rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all hover:shadow-cyan-300"
+        >
+          Start free
+        </button>
+      </MagneticButton>
       <ModalOverlay open={open} onClose={() => setOpen(false)} tab="signup" onTabChange={() => {}} />
     </>
   );
@@ -96,12 +101,14 @@ export function HeroSignInButton(): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-xl border border-border bg-card px-8 py-3.5 text-base font-semibold text-foreground hover:bg-muted transition-colors"
-      >
-        Sign in →
-      </button>
+      <MagneticButton intensity={10} className="rounded-xl">
+        <button
+          onClick={() => setOpen(true)}
+          className="relative rounded-xl border border-border bg-card px-8 py-3.5 text-base font-semibold text-foreground hover:bg-muted transition-colors"
+        >
+          Sign in →
+        </button>
+      </MagneticButton>
       <ModalOverlay open={open} onClose={() => setOpen(false)} tab="signin" onTabChange={() => {}} />
     </>
   );
@@ -111,12 +118,14 @@ export function CTASignUpButton(): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all"
-      >
-        Create free account
-      </button>
+      <MagneticButton intensity={10} className="rounded-xl">
+        <button
+          onClick={() => setOpen(true)}
+          className="relative rounded-xl bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-200 hover:bg-cyan-700 transition-all"
+        >
+          Create free account
+        </button>
+      </MagneticButton>
       <ModalOverlay open={open} onClose={() => setOpen(false)} tab="signup" onTabChange={() => {}} />
     </>
   );
@@ -126,12 +135,14 @@ export function CTASignInButton(): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-xl border border-border px-8 py-3.5 text-base font-semibold text-foreground hover:bg-muted transition-colors"
-      >
-        Sign in
-      </button>
+      <MagneticButton intensity={10} className="rounded-xl">
+        <button
+          onClick={() => setOpen(true)}
+          className="relative rounded-xl border border-border px-8 py-3.5 text-base font-semibold text-foreground hover:bg-muted transition-colors"
+        >
+          Sign in
+        </button>
+      </MagneticButton>
       <ModalOverlay open={open} onClose={() => setOpen(false)} tab="signin" onTabChange={() => {}} />
     </>
   );
