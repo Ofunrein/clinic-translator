@@ -13,9 +13,8 @@ interface LandingPageProps {
 export default async function LandingPage({ searchParams }: LandingPageProps): Promise<React.JSX.Element> {
   const [{ next, signup }, session] = await Promise.all([searchParams, auth()]);
   const isSignedIn = Boolean(session?.user);
-  if (isSignedIn) {
-    const dest = next && next.startsWith("/") ? next : "/app";
-    redirect(dest);
+  if (isSignedIn && next && next.startsWith("/")) {
+    redirect(next);
   }
   const initialOpen = Boolean(next || signup);
   const defaultTab = signup ? "signup" : "signin";

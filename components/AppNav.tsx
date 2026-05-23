@@ -79,9 +79,7 @@ export function AppNav({
           )}
           data-testid="sign-out"
         >
-          <span className="sm:hidden" aria-hidden>↪</span>
-          <span className="hidden sm:inline">Sign out</span>
-          <span className="sr-only sm:hidden">Sign out</span>
+          Sign out
         </button>
       ) : null}
     </nav>
