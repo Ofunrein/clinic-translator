@@ -59,7 +59,7 @@ export function AuthModal({
       <div className={className}>
         <button
           onClick={openSignIn}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+          className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Sign in
         </button>
@@ -98,7 +98,7 @@ export function HeroSignInButton(): React.JSX.Element {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-xl border border-slate-200 bg-white px-8 py-3.5 text-base font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+        className="rounded-xl border border-border bg-card px-8 py-3.5 text-base font-semibold text-foreground hover:bg-muted transition-colors"
       >
         Sign in →
       </button>
@@ -128,7 +128,7 @@ export function CTASignInButton(): React.JSX.Element {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-xl border border-slate-200 px-8 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+        className="rounded-xl border border-border px-8 py-3.5 text-base font-semibold text-foreground hover:bg-muted transition-colors"
       >
         Sign in
       </button>

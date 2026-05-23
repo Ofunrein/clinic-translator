@@ -36,13 +36,6 @@ export function middleware(request: NextRequest): NextResponse {
 
   const token = getSessionToken(request);
 
-  // Authenticated user hitting the landing page → send to the app.
-  if (token && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/app";
-    return NextResponse.redirect(url);
-  }
-
   // Unauthenticated user hitting a protected route → landing page with next param.
   if (!token && isProtectedPath(pathname)) {
     const url = request.nextUrl.clone();

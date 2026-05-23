@@ -62,6 +62,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { AlertTriangle } from "lucide-react";
+import { AppNav } from "@/components/AppNav";
 import { GlossaryEditor } from "./_glossary";
 import { ClinicKnowledgeTab } from "./_clinic-knowledge";
 import { normalizeEscalationRules } from "@/lib/escalation-rules";
@@ -270,6 +271,10 @@ export default function SettingsPage(): React.JSX.Element {
 
   return (
     <main className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-lg font-semibold sm:text-xl">Settings</h1>
+        <AppNav />
+      </header>
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

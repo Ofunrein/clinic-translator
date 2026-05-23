@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { AppNav } from "@/components/AppNav";
 import {
   QueryClient,
   QueryClientProvider,
@@ -176,12 +176,7 @@ function ClinicTranslatorApp(): React.ReactElement {
           ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <Link href="/app/sessions" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Sessions
-          </Link>
-          <Link href="/settings" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Settings
-          </Link>
+          <AppNav />
           <StatusPill voice="Achernar" />
           {sessionId ? (
             <Button
