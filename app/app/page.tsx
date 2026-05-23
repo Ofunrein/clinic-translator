@@ -178,7 +178,7 @@ function ClinicTranslatorApp(): React.ReactElement {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <AppNav />
-          <StatusPill voice="Achernar" />
+          <StatusPill />
           {sessionId ? (
             <Button
               size="sm"

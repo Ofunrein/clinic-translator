@@ -40,6 +40,28 @@ export function isDeepgramEsVoiceId(voice: string): boolean {
   return DEEPGRAM_AURA_ES_VOICE_IDS.has(voice);
 }
 
+/** Short label for UI (StatusPill, etc.) from a TTS voice id. */
+export function resolveTtsVoiceLabel(voiceId: string): string {
+  const trimmed = voiceId.trim();
+  if (!trimmed) return "Voice";
+
+  const dg = DEEPGRAM_AURA_ES_VOICES.find((v) => v.id === trimmed);
+  if (dg) return dg.name;
+
+  const chirp = trimmed.match(/Chirp[^-]*-(?:HD-)?([A-Za-z]+)$/i);
+  if (chirp?.[1]) return chirp[1];
+
+  if (trimmed.startsWith("aura-2-") && trimmed.endsWith("-es")) {
+    const slug = trimmed.slice("aura-2-".length, -"-es".length);
+    return slug.charAt(0).toUpperCase() + slug.slice(1);
+  }
+
+  const tail = trimmed.split("-").pop();
+  return tail && tail.length > 0
+    ? tail.charAt(0).toUpperCase() + tail.slice(1)
+    : trimmed;
+}
+
 /** Voice groups for the settings dropdown. */
 export const DEEPGRAM_AURA_ES_VOICE_GROUPS: ReadonlyArray<{
   label: string;

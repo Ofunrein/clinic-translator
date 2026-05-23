@@ -42,7 +42,6 @@ const AI_ASSIST_ENABLED = true;
 
 export interface StaffPaneProps {
   className?: string;
-  voice?: string;
   /**
    * Track C3 seam — replay a clip of recent patient audio. Wired by
    * `app/page.tsx` which owns the replay buffer in PatientPane (or shared
@@ -55,7 +54,6 @@ const PREVIEW_HOLD_MS_DEFAULT = 10_000;
 
 export function StaffPane({
   className,
-  voice = "es-US-Chirp3-HD-Achernar",
   onReplayPatientUtterance,
 }: StaffPaneProps): React.ReactElement {
   const transcript = useSessionStore((s) => s.transcript);
@@ -302,7 +300,7 @@ export function StaffPane({
     } catch {
       // status already flipped to `degraded` by the hook.
     }
-  }, [preview, tts, voice, addStaff, suggest, sessionId]);
+  }, [preview, tts, addStaff, suggest, sessionId]);
 
   React.useEffect(() => {
     sendAndSpeakRef.current = sendAndSpeak;

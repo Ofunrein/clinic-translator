@@ -3,8 +3,12 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useClinicSettings } from "@/lib/hooks/useClinicSettings";
+import { resolveTtsVoiceLabel } from "@/lib/providers/deepgram-voices";
+import type { TtsProvider } from "@/lib/providers/types";
 import { useSessionStore, type SessionStatus } from "@/lib/session";
 
 export interface StatusPillProps {
@@ -32,8 +36,13 @@ export function StatusPill({
 }: StatusPillProps): React.ReactElement {
   const storeStatus = useSessionStore((s) => s.status);
   const reason = useSessionStore((s) => s.statusReason);
+  const settingsQ = useClinicSettings();
   const effective: SessionStatus = status ?? storeStatus;
   const tone = TONE[effective];
+
+  const settingsTts = settingsQ.data?.tts as TtsProvider | undefined;
+  const voiceId = voice ?? settingsTts?.voice;
+  const voiceLabel = voiceId ? resolveTtsVoiceLabel(voiceId) : undefined;
 
   return (
     <div
@@ -51,11 +60,15 @@ export function StatusPill({
         className={cn("h-2 w-2 rounded-full", tone.dot)}
       />
       <span>{tone.label}</span>
-      {voice ? (
-        <span className="flex items-center gap-1 border-l border-current/20 pl-2 text-[10px] uppercase tracking-wide opacity-80">
+      {voiceLabel ? (
+        <Link
+          href="/settings"
+          className="flex items-center gap-1 border-l border-current/20 pl-2 text-[10px] uppercase tracking-wide opacity-80 transition-opacity hover:opacity-100"
+          title={voiceId ? `TTS voice: ${voiceId}` : undefined}
+        >
           <Settings className="h-3 w-3" aria-hidden="true" />
-          {voice}
-        </span>
+          {voiceLabel}
+        </Link>
       ) : null}
     </div>
   );
