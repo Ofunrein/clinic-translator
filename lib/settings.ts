@@ -41,6 +41,10 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>();
 
+interface SettingsReadOptions {
+  forceFresh?: boolean;
+}
+
 function freshFromPreset(): ProviderConfig {
   return applyPreset("balanced");
 }
@@ -117,10 +121,11 @@ async function loadOrSeed(clinicId: string): Promise<ClinicSettings> {
 
 export async function getClinicSettings(
   clinicId: string = DEFAULT_CLINIC_ID,
+  opts: SettingsReadOptions = {},
 ): Promise<ClinicSettings> {
   const now = Date.now();
   const cached = cache.get(clinicId);
-  if (cached && cached.expiresAt > now) return cached.value;
+  if (!opts.forceFresh && cached && cached.expiresAt > now) return cached.value;
   const value = await loadOrSeed(clinicId);
   cache.set(clinicId, { expiresAt: now + CACHE_TTL_MS, value });
   return value;
@@ -155,7 +160,7 @@ export async function updateClinicSettings(args: {
 }): Promise<ClinicSettings> {
   const clinicId = args.clinicId ?? DEFAULT_CLINIC_ID;
   // Ensure row exists.
-  await getClinicSettings(clinicId);
+  await getClinicSettings(clinicId, { forceFresh: true });
   const updateValues: Partial<typeof clinicSettings.$inferInsert> = {
     ...args.patch,
     updatedBy: args.updatedBy,
@@ -214,9 +219,10 @@ export function rowToClinicBlob(row: ClinicSettings): ClinicConfigBlob {
 /** Read the active config; falls back to balanced preset on any error. */
 export async function getActiveProviderConfig(
   clinicId: string = DEFAULT_CLINIC_ID,
+  opts: SettingsReadOptions = {},
 ): Promise<ProviderConfig> {
   try {
-    const row = await getClinicSettings(clinicId);
+    const row = await getClinicSettings(clinicId, opts);
     return ensureSupportedStack(rowToProviderConfig(row));
   } catch {
     return ensureSupportedStack(LATENCY_PRESETS.balanced);

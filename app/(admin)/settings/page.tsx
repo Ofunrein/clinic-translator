@@ -325,7 +325,13 @@ export default function SettingsPage(): React.JSX.Element {
             value={cfg.latencyMode}
             onChange={(mode) => {
               const preset = applyPreset(mode);
-              setProvider(preset);
+              setProvider({
+                ...preset,
+                tts:
+                  cfg.tts.provider === preset.tts.provider
+                    ? cfg.tts
+                    : preset.tts,
+              });
             }}
           />
           <DeepgramVoiceCard

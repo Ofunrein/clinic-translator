@@ -10,7 +10,7 @@ import type { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { ttsBodySchema } from "@/lib/api/zod-schemas";
 import { synthesize as dispatchSynthesize } from "@/lib/providers/clients";
-import { getActiveProviderConfig } from "@/lib/settings";
+import { DEFAULT_CLINIC_ID, getActiveProviderConfig } from "@/lib/settings";
 import { ValidationError, errorToResponse, newTraceId } from "@/lib/api/errors";
 import { recordAudit } from "@/lib/audit";
 
@@ -38,7 +38,10 @@ export async function POST(req: Request): Promise<Response> {
     // Resolve active TTS config; if the body specifies an override `voice`,
     // we honor it on top of the active provider blob. The B3 frontend
     // currently passes only `text`, so the active config wins by default.
-    const active = await getActiveProviderConfig();
+    // Force a fresh read so a just-saved Settings voice is used immediately.
+    const active = await getActiveProviderConfig(DEFAULT_CLINIC_ID, {
+      forceFresh: true,
+    });
     const ttsConfig = body.voice
       ? { ...active.tts, voice: body.voice }
       : active.tts;

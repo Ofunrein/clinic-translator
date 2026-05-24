@@ -5,8 +5,13 @@ import { requireUser } from "@/lib/api/auth";
 import { requireRole, AuthorizationError } from "@/lib/auth/roles";
 import { recordAudit } from "@/lib/audit";
 import { errorToResponse, newTraceId } from "@/lib/api/errors";
-import { updateClinicSettings } from "@/lib/settings";
+import {
+  DEFAULT_CLINIC_ID,
+  getClinicSettings,
+  updateClinicSettings,
+} from "@/lib/settings";
 import { applyPreset } from "@/lib/providers/presets";
+import type { TtsProvider } from "@/lib/providers/types";
 
 export const runtime = "nodejs";
 
@@ -17,10 +22,16 @@ export async function POST(req: Request): Promise<NextResponse> {
     await requireUser(req);
 
     const preset = applyPreset("balanced");
+    const current = await getClinicSettings(DEFAULT_CLINIC_ID, {
+      forceFresh: true,
+    });
+    const currentTts = current.tts as TtsProvider;
+    const tts =
+      currentTts.provider === preset.tts.provider ? currentTts : preset.tts;
     const row = await updateClinicSettings({
       patch: {
         stt: preset.stt,
-        tts: preset.tts,
+        tts,
         translate: preset.translate,
         suggest: preset.suggest,
         latencyMode: preset.latencyMode,
