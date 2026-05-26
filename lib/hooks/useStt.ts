@@ -20,6 +20,8 @@ export interface UseSttOptions {
   mutedDb?: number;
   /** Window in ms over which the mic must stay below threshold. */
   mutedWindowMs?: number;
+  /** Deepgram model name to use (e.g. "nova-3", "nova-2", "flux-general-multi"). Defaults to "nova-3". */
+  sttModel?: string;
 }
 
 export interface UseSttResult {
@@ -51,6 +53,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
     inputGain = DEFAULT_INPUT_GAIN,
     mutedDb = -50,
     mutedWindowMs = 8000,
+    sttModel = "nova-3",
   } = opts;
 
   const addPartial = useSessionStore((s) => s.addPartial);
@@ -138,7 +141,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
       const deepgram = createClient(key);
       const connection = deepgram.listen.live({
         language: "es",
-        model: "nova-3",
+        model: sttModel,
         interim_results: true,
         endpointing: 500,
         smart_format: true,
@@ -242,7 +245,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
 
       return connection;
     },
-    [addPartial, promotePartial, reconcileUtteranceId, sessionId, setStatus, setTranslation],
+    [addPartial, promotePartial, reconcileUtteranceId, sessionId, setStatus, setTranslation, sttModel],
   );
 
   const start = React.useCallback(async (): Promise<void> => {

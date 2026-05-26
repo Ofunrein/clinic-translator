@@ -23,6 +23,7 @@ import { UrgencyFlag, type Urgency } from "./UrgencyFlag";
 import { SilencePrompt } from "./SilencePrompt";
 import { CallbackVerifyCard } from "./CallbackVerifyCard";
 import { useStt } from "@/lib/hooks/useStt";
+import { useClinicSettings } from "@/lib/hooks/useClinicSettings";
 import { useSessionStore, type Utterance } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { useSilenceDetector } from "@/lib/edge/silence-detector";
@@ -60,7 +61,13 @@ export function PatientPane({
 }: PatientPaneProps): React.ReactElement {
   const transcript = useSessionStore((s) => s.transcript);
   const sessionId = useSessionStore((s) => s.sessionId);
-  const stt = useStt();
+  const settingsQ = useClinicSettings();
+  const sttModel: string =
+    settingsQ.data?.stt &&
+    (settingsQ.data.stt as { provider?: string; model?: string }).provider === "deepgram"
+      ? ((settingsQ.data.stt as { model?: string }).model ?? "nova-3")
+      : "nova-3";
+  const stt = useStt({ sttModel });
 
   // C3: silence detector. TODO C2 settings flag — wire to useClinicSettings()
   // when C2 lands; defaults-on for now.
