@@ -323,3 +323,27 @@ export const userCredentials = pgTable("user_credentials", {
 
 export type UserCredential = typeof userCredentials.$inferSelect;
 export type NewUserCredential = typeof userCredentials.$inferInsert;
+
+// ----- usage_events (Cost Tracking) -----
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id:               uuid("id").primaryKey().defaultRandom(),
+    sessionId:        uuid("session_id").references(() => calls.id, { onDelete: "set null" }),
+    route:            text("route").notNull(),
+    provider:         text("provider").notNull(),
+    model:            text("model").notNull(),
+    promptTokens:     integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    ttsChars:         integer("tts_chars"),
+    estimatedCostUsd: numeric("estimated_cost_usd", { precision: 10, scale: 6 }).notNull(),
+    createdAt:        timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    sessionIdx: index("usage_events_session_idx").on(t.sessionId),
+    createdIdx: index("usage_events_created_idx").on(t.createdAt),
+  }),
+);
+
+export type UsageEvent    = typeof usageEvents.$inferSelect;
+export type NewUsageEvent = typeof usageEvents.$inferInsert;
