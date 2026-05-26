@@ -19,7 +19,7 @@ import {
   useUpdateClinicSettings,
   type ClientClinicSettings,
 } from "@/lib/hooks/useClinicSettings";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCatalogEntry,
 } from "@/lib/providers/registry";
@@ -397,6 +397,8 @@ export default function SettingsPage(): React.JSX.Element {
           <GlossaryEditor />
         </TabsContent>
       </Tabs>
+
+      <UsageCard />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="ghost" onClick={onReset} className="w-full sm:w-auto">
@@ -933,6 +935,85 @@ function RetentionCard({
             step={1}
           />
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Usage & Cost
+// ---------------------------------------------------------------------------
+
+interface UsageDay { date: string; costUsd: number; calls: number }
+interface UsageData {
+  totalCostUsd: number;
+  byDay: UsageDay[];
+  byRoute: Record<string, number>;
+}
+
+function UsageCard(): React.JSX.Element {
+  const q = useQuery<UsageData, Error>({
+    queryKey: ["clinic-usage"],
+    queryFn: async () => {
+      const res = await fetch("/api/usage?days=7", { credentials: "include" });
+      if (!res.ok) throw new Error(`usage fetch failed (${res.status})`);
+      return (await res.json()) as UsageData;
+    },
+    staleTime: 60_000,
+  });
+
+  function fmt(n: number): string {
+    return n < 0.0001 ? "<$0.0001" : `$${n.toFixed(4)}`;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Usage &amp; Cost (last 7 days)</CardTitle>
+        <CardDescription>
+          Estimated costs from translate, suggest, and TTS calls. Rates from
+          provider catalog — actual billing may differ.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {q.isPending ? (
+          <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : q.isError ? (
+          <div className="text-sm text-muted-foreground">Usage data unavailable.</div>
+        ) : q.data.byDay.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No usage in the last 7 days.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <span className="text-2xl font-semibold">{fmt(q.data.totalCostUsd)}</span>
+              <div className="flex gap-2 text-xs text-muted-foreground">
+                {Object.entries(q.data.byRoute).map(([route, cost]) => (
+                  <span key={route} className="rounded bg-muted px-1.5 py-0.5">
+                    {route}: {fmt(cost)}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="pb-1 font-medium">Date</th>
+                  <th className="pb-1 font-medium">Calls</th>
+                  <th className="pb-1 text-right font-medium">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {q.data.byDay.map((d) => (
+                  <tr key={d.date} className="border-t border-border/40">
+                    <td className="py-1">{d.date}</td>
+                    <td className="py-1">{d.calls}</td>
+                    <td className="py-1 text-right">{fmt(d.costUsd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
