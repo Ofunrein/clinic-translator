@@ -210,11 +210,46 @@ export async function* suggestReplyGroq(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new SuggestError(`groq suggest ${res.status}`, {
-      retryable: isRetryableStatus(res.status),
-      status: res.status === 429 ? 429 : 502,
-      cause: text.slice(0, 256),
-    });
+    const requestedModel = args.model || DEFAULT_GROQ_MODEL;
+    if (isModelNotFound(res.status, text) && requestedModel !== GROQ_FALLBACK_MODEL) {
+      console.warn("[groq] model not found, falling back", { requested: requestedModel, fallback: GROQ_FALLBACK_MODEL });
+      let fallbackRes: Response;
+      try {
+        fallbackRes = await getFetch()(`${GROQ_BASE}/chat/completions`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+          },
+          body: JSON.stringify({
+            model: GROQ_FALLBACK_MODEL,
+            temperature: 0.3,
+            max_tokens: 512,
+            response_format: { type: "json_object" },
+            stream: true,
+            messages,
+          }),
+        });
+      } catch (err) {
+        throw new SuggestError("groq suggest transport failed", { retryable: true, cause: err });
+      }
+      if (!fallbackRes.ok) {
+        const fallbackText = await fallbackRes.text().catch(() => "");
+        throw new SuggestError(`groq suggest ${fallbackRes.status}`, {
+          retryable: isRetryableStatus(fallbackRes.status),
+          status: fallbackRes.status === 429 ? 429 : 502,
+          cause: fallbackText.slice(0, 256),
+        });
+      }
+      res = fallbackRes;
+    } else {
+      throw new SuggestError(`groq suggest ${res.status}`, {
+        retryable: isRetryableStatus(res.status),
+        status: res.status === 429 ? 429 : 502,
+        cause: text.slice(0, 256),
+      });
+    }
   }
 
   const body = res.body;
