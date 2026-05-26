@@ -21,7 +21,6 @@ import {
 } from "@/lib/deepgram";
 import { findGlossaryHits } from "@/lib/medical-glossary";
 import { transcribeOpenai, translateOpenai } from "@/lib/providers/clients/openai";
-import { getActiveProviderConfig } from "@/lib/settings";
 import { jwtVerify } from "jose";
 
 export const runtime = "edge";
@@ -387,15 +386,10 @@ export async function GET(req: Request): Promise<Response> {
   const origin = new URL(req.url).origin;
   const { token } = authz;
 
-  let sttModel = "nova-3";
-  try {
-    const providerConfig = await getActiveProviderConfig();
-    if (providerConfig.stt.provider === "deepgram") {
-      sttModel = providerConfig.stt.model;
-    }
-  } catch {
-    // nova-3 fallback keeps the session alive even if settings DB is unreachable
-  }
+  // Client passes the clinic's configured STT model as ?sttModel=<id>.
+  // Edge runtime cannot import the DB-backed settings module, so the client
+  // (useStt.ts) reads the model from useClinicSettings and forwards it here.
+  const sttModel = new URL(req.url).searchParams.get("sttModel") ?? "nova-3";
 
   const pair = new Pair();
   const clientSide = pair[0];
