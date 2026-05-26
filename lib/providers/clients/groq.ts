@@ -15,6 +15,18 @@ import type { SuggestionResult, SuggestTurn } from "@/lib/anthropic";
 const GROQ_BASE = "https://api.groq.com/openai/v1";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 
+export const GROQ_FALLBACK_MODEL = "llama-3.3-70b-versatile";
+
+export function isModelNotFound(status: number, body: string): boolean {
+  if (status !== 404) return false;
+  try {
+    const parsed = JSON.parse(body) as { error?: { type?: unknown } };
+    return parsed?.error?.type === "model_not_found";
+  } catch {
+    return false;
+  }
+}
+
 export type FetchLike = (
   input: string,
   init: RequestInit,
@@ -359,11 +371,34 @@ export async function translateGroq(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new TranslateError(`groq translate ${res.status}`, {
-      retryable: isRetryableStatus(res.status),
-      status: res.status === 429 ? 429 : 502,
-      cause: text.slice(0, 256),
-    });
+    if (isModelNotFound(res.status, text) && model !== GROQ_FALLBACK_MODEL) {
+      console.warn("[groq] model not found, falling back", { requested: model, fallback: GROQ_FALLBACK_MODEL });
+      let fallbackRes: Response;
+      try {
+        fallbackRes = await getFetch()(`${GROQ_BASE}/chat/completions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: GROQ_FALLBACK_MODEL, temperature: 0.2, max_tokens: 1024, response_format: { type: "json_object" }, messages }),
+        });
+      } catch (err) {
+        throw new TranslateError("groq translate transport failed", { retryable: true, cause: err });
+      }
+      if (!fallbackRes.ok) {
+        const fallbackText = await fallbackRes.text().catch(() => "");
+        throw new TranslateError(`groq translate ${fallbackRes.status}`, {
+          retryable: isRetryableStatus(fallbackRes.status),
+          status: fallbackRes.status === 429 ? 429 : 502,
+          cause: fallbackText.slice(0, 256),
+        });
+      }
+      res = fallbackRes;
+    } else {
+      throw new TranslateError(`groq translate ${res.status}`, {
+        retryable: isRetryableStatus(res.status),
+        status: res.status === 429 ? 429 : 502,
+        cause: text.slice(0, 256),
+      });
+    }
   }
 
   let parsed: ChatCompletionResponse;
