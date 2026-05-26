@@ -8,6 +8,7 @@ import {
   isValidVoice,
 } from "@/lib/providers/registry";
 import { LATENCY_PRESETS, applyPreset } from "@/lib/providers/presets";
+import { DEEPGRAM_AURA_ES_VOICES } from "@/lib/providers/deepgram-voices";
 import type { ProviderConfig } from "@/lib/providers/types";
 
 describe("provider registry", () => {
@@ -31,6 +32,42 @@ describe("provider registry", () => {
     expect(isValidVoice("polly", "Lupe", "sonic-2")).toBe(false);
     // Cartesia wired up
     expect(isValidVoice("cartesia", "sonic-2-es-female", "sonic-2")).toBe(true);
+  });
+
+  it("exposes every Deepgram Aura-2 Spanish voice in the TTS catalog", () => {
+    const expectedIds = [
+      "aura-2-sirio-es",
+      "aura-2-nestor-es",
+      "aura-2-carina-es",
+      "aura-2-celeste-es",
+      "aura-2-alvaro-es",
+      "aura-2-diana-es",
+      "aura-2-aquila-es",
+      "aura-2-selena-es",
+      "aura-2-estrella-es",
+      "aura-2-javier-es",
+      "aura-2-agustina-es",
+      "aura-2-antonia-es",
+      "aura-2-gloria-es",
+      "aura-2-luciano-es",
+      "aura-2-olivia-es",
+      "aura-2-silvia-es",
+      "aura-2-valerio-es",
+    ];
+    expect(DEEPGRAM_AURA_ES_VOICES.map((v) => v.id).sort()).toEqual(
+      expectedIds.sort(),
+    );
+    for (const id of expectedIds) {
+      expect(isValidVoice("deepgram", id, "aura-2")).toBe(true);
+    }
+  });
+
+  it("deepgram STT catalog includes flux-general-multi", () => {
+    const entry = getCatalogEntry("stt", "deepgram");
+    expect(entry).not.toBeNull();
+    const fluxModel = entry!.models.find((m) => m.id === "flux-general-multi");
+    expect(fluxModel).toBeDefined();
+    expect(fluxModel!.label).toContain("Flux");
   });
 
   it("flags non-BAA providers in baaTier", () => {

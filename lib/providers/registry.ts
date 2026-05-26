@@ -21,6 +21,12 @@ const stt: Record<string, ProviderCatalogEntry> = {
     models: [
       { id: "nova-3", label: "Nova-3 ES (default)", costPer1k: 0.0043, baseLatencyMs: 250 },
       { id: "nova-2", label: "Nova-2 ES", costPer1k: 0.0036, baseLatencyMs: 280 },
+      {
+        id: "flux-general-multi",
+        label: "Flux General Multilingual (real-time turn detection)",
+        costPer1k: 0.0043,
+        baseLatencyMs: 220,
+      },
     ],
     voices: [],
     engines: [],
