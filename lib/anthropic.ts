@@ -310,8 +310,9 @@ export interface SuggestArgs {
 }
 
 export type SuggestStreamEvent =
-  | { token: string; final?: never }
-  | { token?: never; final: SuggestionResult };
+  | { token: string; final?: never; usage?: never }
+  | { token?: never; final: SuggestionResult; usage?: never }
+  | { token?: never; final?: never; usage: { promptTokens: number; completionTokens: number } };
 
 // Streaming-side test seam. Yields raw bedrock event payloads so tests can
 // drive the parser without touching the AWS SDK.
