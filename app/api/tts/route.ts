@@ -50,11 +50,12 @@ export async function POST(req: Request): Promise<Response> {
       engine: ttsConfig.engine,
       requestedVoice: body.voice ?? null,
       resolvedVoice: ttsConfig.voice,
+      speed: body.speed ?? null,
       textChars: body.text.length,
       sessionIdPresent: Boolean(body.sessionId),
     });
 
-    const result = await dispatchSynthesize({ text: body.text, config: ttsConfig });
+    const result = await dispatchSynthesize({ text: body.text, config: ttsConfig, speed: body.speed });
 
     void recordUsage({
       route: "tts",

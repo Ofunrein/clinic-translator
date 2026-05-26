@@ -49,6 +49,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // User exists via Google — add password credential
       const passwordHash = await hashPassword(password);
       await db.insert(userCredentials).values({ userId: existing[0].id, passwordHash });
+      const existingStaff = await db
+        .select({ id: staffUsers.id })
+        .from(staffUsers)
+        .where(eq(staffUsers.email, email))
+        .limit(1);
+      if (!existingStaff[0]) {
+        await db.insert(staffUsers).values({
+          id: existing[0].id,
+          email,
+          name,
+          lastLoginAt: new Date(),
+        });
+      }
       return NextResponse.json({ ok: true });
     }
 
@@ -68,6 +81,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!existingStaff[0]) {
       await db.insert(staffUsers).values({
+        id: userId,
         email,
         name,
         lastLoginAt: new Date(),

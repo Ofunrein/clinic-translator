@@ -39,10 +39,12 @@ describe("deepgram-tts", () => {
       text: "Buenos días",
       voice: "aura-2-javier-es",
       engine: "aura-2",
+      speed: 0.85,
     });
 
     expect(capturedUrl).toContain("model=aura-2-javier-es");
     expect(capturedUrl).toContain("encoding=mp3");
+    expect(capturedUrl).toContain("speed=0.85");
     expect(result.audio.equals(FAKE_MP3)).toBe(true);
     expect(result.voice).toBe("aura-2-javier-es");
   });

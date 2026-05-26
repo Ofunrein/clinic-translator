@@ -38,8 +38,8 @@ export const AudioPlayer = React.forwardRef<AudioPlayerHandle>(function AudioPla
   const sinkAudioRef = React.useRef<AudioElWithSink | null>(null);
   const sinkDestRef = React.useRef<MediaStreamAudioDestinationNode | null>(null);
 
-  const playNext = React.useCallback(() => {
-    const ac = audio.audioContext;
+  const playNext = React.useCallback((ctx?: AudioContext) => {
+    const ac = ctx ?? audio.audioContext;
     if (!ac) return;
     if (isPlayingRef.current) return;
     const next = queueRef.current.shift();
@@ -54,7 +54,7 @@ export const AudioPlayer = React.forwardRef<AudioPlayerHandle>(function AudioPla
     src.onended = () => {
       isPlayingRef.current = false;
       sourceRef.current = null;
-      playNext();
+      playNext(ac);
     };
     sourceRef.current = src;
     isPlayingRef.current = true;
@@ -85,7 +85,7 @@ export const AudioPlayer = React.forwardRef<AudioPlayerHandle>(function AudioPla
           throw err;
         }
         queueRef.current.push(decoded);
-        playNext();
+        playNext(ac);
       },
       bargeIn() {
         queueRef.current = [];

@@ -16,6 +16,7 @@ export async function synthesizeDeepgram(args: {
   text: string;
   voice: string;
   engine: "aura-2";
+  speed?: number;
 }): Promise<{ audio: Buffer; cacheHit: boolean; voice: string; fellBack: boolean }> {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) {
@@ -24,9 +25,14 @@ export async function synthesizeDeepgram(args: {
 
   const model = resolveModel(args.voice, args.engine);
   const fetchFn = _fetchOverride ?? fetch;
-  const url = `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}&encoding=mp3`;
+  const url = new URL("https://api.deepgram.com/v1/speak");
+  url.searchParams.set("model", model);
+  url.searchParams.set("encoding", "mp3");
+  if (typeof args.speed === "number") {
+    url.searchParams.set("speed", String(args.speed));
+  }
 
-  const res = await fetchFn(url, {
+  const res = await fetchFn(url.toString(), {
     method: "POST",
     headers: {
       Authorization: `Token ${apiKey}`,

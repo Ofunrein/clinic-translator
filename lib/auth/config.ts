@@ -160,7 +160,7 @@ export const authConfig: NextAuthConfig = {
         if (!row.active) return "/login?error=not_allowlisted";
         await db
           .update(staffUsers)
-          .set({ name: user.name ?? null, lastLoginAt: new Date() })
+          .set({ id: userId, name: user.name ?? null, lastLoginAt: new Date() })
           .where(eq(staffUsers.email, email));
       }
       return true;
