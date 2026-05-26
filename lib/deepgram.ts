@@ -4,8 +4,9 @@
 //
 // Spec §4.2, §5.1 step 3, §7 (Deepgram WS drop → exp backoff).
 
-const DEEPGRAM_URL =
-  "wss://api.deepgram.com/v1/listen?language=es&model=nova-3&interim_results=true&endpointing=500&smart_format=true&encoding=linear16&sample_rate=16000";
+export function buildDeepgramUrl(model = "nova-3"): string {
+  return `wss://api.deepgram.com/v1/listen?language=es&model=${encodeURIComponent(model)}&interim_results=true&endpointing=500&smart_format=true&encoding=linear16&sample_rate=16000`;
+}
 
 export interface DeepgramAlternative {
   transcript: string;
@@ -31,18 +32,16 @@ export interface DeepgramFrame {
  *
  * Caller is responsible for `.close()` and reconnect/backoff.
  */
-export function createDeepgramSocket(): WebSocket {
+export function createDeepgramSocket(model = "nova-3"): WebSocket {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) {
     throw new Error("DEEPGRAM_API_KEY is not set; cannot open Deepgram WS.");
   }
   const Ctor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
   if (typeof Ctor !== "function") {
-    // EDGE_WS_TODO: surface a clearer error if the runtime doesn't expose
-    // a global WebSocket — the Edge runtime always does.
     throw new Error("WebSocket ctor unavailable in this runtime");
   }
-  return new Ctor(DEEPGRAM_URL, ["token", apiKey]);
+  return new Ctor(buildDeepgramUrl(model), ["token", apiKey]);
 }
 
 export function parseDeepgramFrame(raw: string): DeepgramFrame | null {
