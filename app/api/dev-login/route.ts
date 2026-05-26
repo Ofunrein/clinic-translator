@@ -1,7 +1,8 @@
-// DEV ONLY — bypasses Google OAuth and creates a real NextAuth database session.
+// DEV ONLY — bypasses Google OAuth and creates a real NextAuth JWT session.
 // Only active when NODE_ENV === "development". Never ships to production.
 import { NextRequest, NextResponse } from "next/server";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
+import { encode } from "next-auth/jwt";
 
 // Prevent Next.js from statically collecting this route at build time.
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Lazy-import DB so it's never evaluated at build time.
   const { db } = await import("@/lib/db/client");
-  const { users, sessions, staffUsers } = await import("@/lib/db/schema");
+  const { users, staffUsers } = await import("@/lib/db/schema");
   const { eq } = await import("drizzle-orm");
 
   const ct = req.headers.get("content-type") ?? "";
@@ -65,17 +66,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .where(eq(staffUsers.email, email));
   }
 
-  // Create a NextAuth database session.
-  const sessionToken = crypto.randomUUID();
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-  await db.insert(sessions).values({ sessionToken, userId, expires });
+  // Create a JWT session token (matches the app's `strategy: "jwt"` config).
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    return NextResponse.json({ error: "NEXTAUTH_SECRET not set" }, { status: 500 });
+  }
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const token = await encode({
+    token: {
+      sub: userId,
+      email,
+      name: "Dev User",
+      role: "admin",
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(expires.getTime() / 1000),
+    },
+    secret,
+    salt: "authjs.session-token",
+  });
 
-  // Set the session cookie and redirect — single navigation so the browser
-  // stores the cookie before hitting the middleware-protected route.
+  // Set the session cookie and redirect.
   const cookieName = "authjs.session-token";
   const dest = callbackUrl.startsWith("/") ? callbackUrl : "/";
   const res = NextResponse.redirect(new URL(dest, req.url), 302);
-  res.cookies.set(cookieName, sessionToken, {
+  res.cookies.set(cookieName, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

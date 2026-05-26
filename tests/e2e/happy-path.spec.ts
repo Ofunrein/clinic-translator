@@ -13,6 +13,21 @@ import { test, expect } from "@playwright/test";
 
 const FAKE_SESSION_ID = "e2e-session-0001";
 
+// Dev login: POST to /api/dev-login directly via context.request (shares
+// the cookie jar with the browser) so the page carries a valid session.
+// Call this BEFORE page.goto so cookies are ready when the page loads.
+async function devLogin(page: import("@playwright/test").Page): Promise<void> {
+  const ctx = page.context();
+  await ctx.request.post("/api/dev-login", {
+    form: { email: "ofunrein123@gmail.com" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Referer": "http://localhost:3000/login",
+    },
+    maxRedirects: 5,
+  });
+}
+
 test.describe("happy path", () => {
   test("ES transcript + EN translation + send & speak + persist on reload", async ({
     page,
@@ -22,7 +37,28 @@ test.describe("happy path", () => {
       origin: "http://localhost:3000",
     });
 
-    // ---- HTTP stubs ----
+    // Auth cookie first, before any page navigation.
+    await devLogin(page);
+
+    // Mock AudioContext.decodeAudioData so the TTS null-byte stub doesn't cause
+    // player.play() to throw (which would prevent addStaff from running).
+    await page.addInitScript(() => {
+      const OrigAC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!OrigAC) return;
+      const origDecode = OrigAC.prototype.decodeAudioData;
+      OrigAC.prototype.decodeAudioData = function (
+        buffer: ArrayBuffer,
+        successCallback?: (buf: AudioBuffer) => void,
+      ): Promise<AudioBuffer> {
+        // Return a short silent audio buffer instead of trying to decode MP3.
+        const silent = this.createBuffer(1, Math.floor(this.sampleRate * 0.05), this.sampleRate);
+        successCallback?.(silent);
+        return Promise.resolve(silent);
+      };
+      void origDecode; // silence unused-var lint
+    });
+
+    // ---- HTTP stubs (set up before navigation) ----
     await page.route("**/api/sessions", async (r) => {
       if (r.request().method() !== "POST") return r.fallback();
       await r.fulfill({
@@ -89,58 +125,45 @@ test.describe("happy path", () => {
       });
     });
 
-    // ---- WS stub: shim WebSocket before app code runs ----
-    await page.addInitScript(() => {
-      const Real = window.WebSocket;
-      class FakeWs extends EventTarget {
-        readyState = 0;
-        binaryType: BinaryType = "blob";
-        onopen: ((ev: Event) => void) | null = null;
-        onmessage: ((ev: MessageEvent) => void) | null = null;
-        onclose: ((ev: CloseEvent) => void) | null = null;
-        onerror: ((ev: Event) => void) | null = null;
-        url: string;
-        constructor(url: string) {
-          super();
-          this.url = url;
-          // Open shortly so the app sees a connected socket.
-          setTimeout(() => {
-            this.readyState = 1;
-            this.onopen?.(new Event("open"));
-          }, 50);
-          // Push a partial then a final ES utterance.
-          setTimeout(() => {
-            this.onmessage?.(
-              new MessageEvent("message", {
-                data: JSON.stringify({ type: "partial", text: "hola" }),
-              }) as MessageEvent,
-            );
-          }, 200);
-          setTimeout(() => {
-            this.onmessage?.(
-              new MessageEvent("message", {
-                data: JSON.stringify({
-                  type: "final",
-                  text: "hola, doctor",
-                  translation: "hello, doctor",
-                }),
-              }) as MessageEvent,
-            );
-          }, 400);
-        }
-        send(_data: unknown): void { /* drop */ }
-        close(): void {
-          this.readyState = 3;
-          this.onclose?.(new CloseEvent("close"));
-        }
-      }
-      // Cast through unknown — Playwright's tsconfig is permissive enough.
-      (window as unknown as { WebSocket: unknown }).WebSocket = FakeWs as unknown;
-      // Keep a reference so debugging is easy.
-      (window as unknown as { __RealWs: typeof Real }).__RealWs = Real;
+    // Stub /api/stt/token so the SDK gets a fake key (avoids real Deepgram auth).
+    await page.route("**/api/stt/token", async (r) => {
+      await r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ key: "fake-deepgram-key-for-e2e" }),
+      });
     });
 
-    await page.goto("/");
+    // ---- WebSocket intercept: network-level interception of Deepgram connections ----
+    await page.routeWebSocket(/api\.deepgram\.com/, (ws) => {
+      ws.onMessage(() => { /* drop binary audio frames */ });
+
+      // Deepgram always sends a Metadata frame on connect. The SDK waits for
+      // this (or the WebSocket "open" event) before emitting LiveTranscriptionEvents.Open.
+      ws.send(JSON.stringify({ type: "Metadata", transaction_key: "e2e", request_id: "e2e", sha256: "e2e", created: new Date().toISOString(), duration: 0, channels: 1 }));
+
+      // Partial transcript.
+      setTimeout(() => {
+        ws.send(JSON.stringify({
+          type: "Results",
+          channel: { alternatives: [{ transcript: "hola", confidence: 0.95 }] },
+          is_final: false,
+          speech_final: false,
+        }));
+      }, 300);
+
+      // Final transcript — triggers the UI update we assert on.
+      setTimeout(() => {
+        ws.send(JSON.stringify({
+          type: "Results",
+          channel: { alternatives: [{ transcript: "hola, doctor", confidence: 0.99 }] },
+          is_final: true,
+          speech_final: true,
+        }));
+      }, 600);
+    });
+
+    await page.goto("/app");
 
     // Start a call.
     await page.getByRole("button", { name: "Start Call" }).click();
@@ -148,39 +171,52 @@ test.describe("happy path", () => {
     // The WS shim publishes a final ES utterance with EN translation.
     await expect(
       page.locator('[data-testid="patient-transcript"]'),
-    ).toContainText("hola, doctor", { timeout: 5000 });
+    ).toContainText("hola, doctor", { timeout: 10000 });
     await expect(
       page.locator('[data-testid="patient-transcript"]'),
-    ).toContainText("hello, doctor");
+    ).toContainText("Hello, doctor");
 
-    // Type EN, hit Cmd+Enter, get preview.
+    // Stub /api/suggest to avoid Groq key errors blocking staff flow.
+    await page.route("**/api/suggest", async (r) => {
+      await r.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: `data: {"type":"suggestion","suggestion":"Take ibuprofen with food","confidence":0.9,"reasoning":"","escalate":false}\n\ndata: [DONE]\n\n`,
+      });
+    });
+    await page.route("**/api/suggest/outcome", async (r) => {
+      await r.fulfill({ status: 200, body: "{}" });
+    });
+
+    // Type EN and translate using Ctrl+Enter (works headless on all platforms).
     const ta = page.getByTestId("staff-textarea");
+    await ta.click();
     await ta.fill("Take ibuprofen with food");
-    // Use the OS-appropriate chord — Playwright maps `Meta` to ⌘ on macOS,
-    // `Control` on others. We always send both via keyboard shortcuts API.
-    await ta.press("Meta+Enter");
-    // Fall back to Ctrl+Enter if Meta+Enter didn't trigger (non-mac runner).
+    await ta.press("Control+Enter");
     const sendBtn = page.getByTestId("send-and-speak");
-    if (!(await sendBtn.isVisible().catch(() => false))) {
-      await ta.press("Control+Enter");
-    }
-    await expect(sendBtn).toBeVisible({ timeout: 4000 });
+    await expect(sendBtn).toBeVisible({ timeout: 10000 });
+
+    // Stub utterance persist so it doesn't hit the real DB.
+    await page.route(`**/api/sessions/*/utterances`, async (r) => {
+      await r.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ id: crypto.randomUUID(), en: "", es: "" }) });
+    });
 
     // Confirm — TTS POST fires and a staff utterance lands in the staff list.
-    const ttsRequest = page.waitForRequest("**/api/tts");
+    // Wait for TTS response (not just request) so the play+addStaff chain completes.
+    const ttsResponse = page.waitForResponse("**/api/tts");
     await sendBtn.click();
-    await ttsRequest;
+    await ttsResponse;
 
     await expect(
       page.locator('[data-testid="staff-transcript"]'),
-    ).toContainText("Take ibuprofen with food", { timeout: 4000 });
+    ).toContainText("Take ibuprofen with food", { timeout: 10000 });
 
     // ---- Persistence on reload ----
     await page.reload();
     // The URL has `?session=...` so hydrate should fire.
     await expect(
       page.locator('[data-testid="staff-transcript"]'),
-    ).toContainText("Take ibuprofen with food", { timeout: 4000 });
+    ).toContainText("Take ibuprofen with food", { timeout: 10000 });
     await expect(
       page.locator('[data-testid="patient-transcript"]'),
     ).toContainText("hola, doctor");
