@@ -15,11 +15,13 @@
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import {
   DEEPGRAM_BACKOFF_MS,
+  createDeepgramSocket,
   parseDeepgramFrame,
   pickTranscript,
 } from "@/lib/deepgram";
 import { findGlossaryHits } from "@/lib/medical-glossary";
 import { transcribeOpenai, translateOpenai } from "@/lib/providers/clients/openai";
+import { getActiveProviderConfig } from "@/lib/settings";
 import { jwtVerify } from "jose";
 
 export const runtime = "edge";
@@ -29,9 +31,6 @@ interface ClientFrame {
   text: string;
   translation?: string;
 }
-
-const DEEPGRAM_URL =
-  "wss://api.deepgram.com/v1/listen?language=es&model=nova-3&interim_results=true&endpointing=500&smart_format=true&encoding=linear16&sample_rate=16000";
 
 // EDGE_WS_TODO: Vercel Edge runtime exposes `WebSocketPair` and the
 // `webSocket` Response init key (Cloudflare-style). The runtime currently
@@ -123,18 +122,6 @@ function safeBinarySend(ws: WebSocket, data: ArrayBuffer): void {
   } catch {
     // ignore
   }
-}
-
-function buildDeepgramSocket(): WebSocket {
-  const apiKey = process.env.DEEPGRAM_API_KEY;
-  if (!apiKey) {
-    throw new Error("DEEPGRAM_API_KEY not set");
-  }
-  // EDGE_WS_TODO: Edge runtime's `WebSocket` constructor doesn't accept a
-  // headers option. Deepgram supports subprotocol-based auth: client sends
-  // `Sec-WebSocket-Protocol: token, <KEY>`. This is the documented path for
-  // browser-style WebSocket clients.
-  return new WebSocket(DEEPGRAM_URL, ["token", apiKey]);
 }
 
 // DEV_STT_OPENAI_CHUNKED ------------------------------------------------
@@ -300,13 +287,14 @@ interface BridgeState {
   closing: boolean;
   origin: string;
   token: string;
+  sttModel: string;
 }
 
 function startUpstream(state: BridgeState): void {
   if (state.closing) return;
   let upstream: WebSocket;
   try {
-    upstream = buildDeepgramSocket();
+    upstream = createDeepgramSocket(state.sttModel);
   } catch {
     // No API key or constructor failure — close the client cleanly.
     try { state.client.close(1011, "stt unavailable"); } catch { /* noop */ }
@@ -399,6 +387,16 @@ export async function GET(req: Request): Promise<Response> {
   const origin = new URL(req.url).origin;
   const { token } = authz;
 
+  let sttModel = "nova-3";
+  try {
+    const providerConfig = await getActiveProviderConfig();
+    if (providerConfig.stt.provider === "deepgram") {
+      sttModel = providerConfig.stt.model;
+    }
+  } catch {
+    // nova-3 fallback keeps the session alive even if settings DB is unreachable
+  }
+
   const pair = new Pair();
   const clientSide = pair[0];
   const serverSide = pair[1] as AcceptableSocket;
@@ -440,6 +438,7 @@ export async function GET(req: Request): Promise<Response> {
     closing: false,
     origin,
     token,
+    sttModel,
   };
 
   serverSide.addEventListener("message", (ev: MessageEvent) => {
