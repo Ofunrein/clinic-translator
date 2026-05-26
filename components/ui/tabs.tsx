@@ -70,8 +70,10 @@ export function TabsTrigger({
       aria-selected={active}
       onClick={() => ctx.setValue(value)}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
-        active ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50",
+        "inline-flex items-center justify-center whitespace-nowrap rounded-sm border px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "border-transparent hover:border-border hover:bg-background/50",
         className,
       )}
     >
