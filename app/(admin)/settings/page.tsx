@@ -69,15 +69,20 @@ import { normalizeEscalationRules } from "@/lib/escalation-rules";
 import {
   DEEPGRAM_AURA_ES_VOICE_GROUPS,
   DEEPGRAM_AURA_ES_VOICES,
+  DEFAULT_DEEPGRAM_TTS_VOICE,
   deepgramEsVoiceLabel,
 } from "@/lib/providers/deepgram-voices";
 
 const DEEPGRAM_STT_MODELS = [
   { id: "nova-3", label: "Nova-3 Spanish (streaming)" },
   { id: "nova-2", label: "Nova-2 Spanish" },
+  {
+    id: "flux-general-multi",
+    label: "Flux General Multilingual — better turn detection",
+  },
 ] as const;
 
-const DEFAULT_DEEPGRAM_VOICE = DEEPGRAM_AURA_ES_VOICES[0].id;
+const DEFAULT_DEEPGRAM_VOICE = DEFAULT_DEEPGRAM_TTS_VOICE;
 
 function isSupportedStack(cfg: ProviderConfig): boolean {
   return (
@@ -425,15 +430,15 @@ function LatencyModeCard({
 }): React.JSX.Element {
   const modes: LatencyMode[] = ["fast", "balanced", "accurate"];
   const labels: Record<LatencyMode, { title: string; sub: string; p50: string }> = {
-    fast: { title: "Fast", sub: "Olivia voice + Groq 8B", p50: "~600 ms" },
+    fast: { title: "Fast", sub: "Nova-3 STT · Groq 8B · keeps selected voice", p50: "~600 ms" },
     balanced: {
       title: "Balanced (recommended)",
-      sub: "Javier voice + Groq 70B",
+      sub: "Nova-3 STT · Groq 70B · keeps selected voice",
       p50: "~900 ms",
     },
     accurate: {
       title: "Accurate",
-      sub: "Estrella voice + Groq 70B",
+      sub: "Nova-3 STT · Groq 70B · keeps selected voice",
       p50: "~1.1 s",
     },
   };
@@ -442,8 +447,9 @@ function LatencyModeCard({
       <CardHeader>
         <CardTitle>Latency mode</CardTitle>
         <CardDescription>
-          Snap voice + translation models to a known-good combo. Per-call cost
-          is re-computed live.
+          Switch translation and suggestion models to a known-good speed/quality
+          combo. Your selected TTS voice is kept unless the voice provider changes.
+          Per-call cost is re-computed live.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -570,8 +576,9 @@ function DeepgramVoiceCard({
       <CardHeader>
         <CardTitle>Deepgram voice</CardTitle>
         <CardDescription>
-          One API key powers Spanish speech-to-text (Nova) and Aura-2
-          text-to-speech. Pick a Mexican voice for most patients, or another
+          One API key powers Spanish speech-to-text (Nova) and all available
+          Aura-2 Spanish text-to-speech voices. Pick a Mexican voice for most
+          patients, a code-switching voice for mixed English/Spanish, or another
           regional Spanish voice when needed.
         </CardDescription>
       </CardHeader>
