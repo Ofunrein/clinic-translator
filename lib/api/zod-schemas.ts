@@ -36,6 +36,7 @@ export type TranslateBody = z.infer<typeof translateBodySchema>;
 export const ttsBodySchema = z.object({
   text: z.string().min(1).max(4000),
   voice: z.string().min(1).max(64).optional(),
+  speed: z.number().min(0.7).max(1.5).optional(),
   sessionId: z.string().uuid().optional(),
 });
 export type TtsBody = z.infer<typeof ttsBodySchema>;

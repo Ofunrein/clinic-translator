@@ -15,10 +15,12 @@ describe("buildTtsRequest", () => {
         text: "Estamos bien",
         sessionId: "00000000-0000-0000-0000-000000000123",
         tts: selena,
+        speed: 0.9,
       }),
     ).toEqual({
       text: "Estamos bien",
       voice: "aura-2-selena-es",
+      speed: 0.9,
       sessionId: "00000000-0000-0000-0000-000000000123",
     });
   });

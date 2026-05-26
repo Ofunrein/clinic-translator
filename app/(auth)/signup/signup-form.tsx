@@ -103,7 +103,7 @@ function signupErrorMessage(code: string | undefined): string {
     case "email_taken":
       return "An account with that email already exists.";
     case "not_allowlisted":
-      return "That email isn't on the clinic allowlist. Contact your administrator.";
+      return "Enter a valid email address.";
     case "password_too_short":
       return "Password must be at least 8 characters.";
     case "missing_fields":

@@ -31,9 +31,9 @@ const ACCURATE: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
   // GPT-OSS 120B: MoE model, best reasoning on Groq free tier — verify model ID
   // at console.groq.com/docs/models if Groq updates their catalog.
-  translate: { provider: "groq", model: "gpt-oss-120b" },
+  translate: { provider: "groq", model: "openai/gpt-oss-120b" },
   tts: DEFAULT_TTS,
-  suggest: { provider: "groq", model: "gpt-oss-120b" },
+  suggest: { provider: "groq", model: "openai/gpt-oss-120b" },
   latencyMode: "accurate",
   realtimeMode: "text-middleman",
 };

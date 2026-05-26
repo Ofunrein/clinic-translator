@@ -35,6 +35,33 @@ export const DEFAULT_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
 const DEFAULT_ESCALATION: EscalationRules = DEFAULT_ESCALATION_RULES;
 
 const CACHE_TTL_MS = 30_000;
+
+function normalizeGroqModel(model: string): string {
+  const normalized = model.trim().toLowerCase();
+  if (
+    normalized === "gpt-oss-120b" ||
+    normalized === "gptoss-120b" ||
+    normalized === "gpt oss 120b" ||
+    normalized === "openai:gpt-oss-120b"
+  ) {
+    return "openai/gpt-oss-120b";
+  }
+  if (
+    normalized === "gpt-oss-20b" ||
+    normalized === "gptoss-20b" ||
+    normalized === "gpt oss 20b" ||
+    normalized === "openai:gpt-oss-20b"
+  ) {
+    return "openai/gpt-oss-20b";
+  }
+  return model;
+}
+
+function normalizeGroqTranslate<T extends TranslateProvider | SuggestProvider>(config: T): T {
+  if (config.provider !== "groq") return config;
+  return { ...config, model: normalizeGroqModel(config.model) } as T;
+}
+
 interface CacheEntry {
   expiresAt: number;
   value: ClinicSettings;
@@ -64,11 +91,11 @@ function ensureSupportedStack(config: ProviderConfig): ProviderConfig {
         : preset.tts,
     translate:
       config.translate.provider === "groq"
-        ? config.translate
+        ? normalizeGroqTranslate(config.translate)
         : preset.translate,
     suggest:
       config.suggest.provider === "groq"
-        ? config.suggest
+        ? normalizeGroqTranslate(config.suggest)
         : preset.suggest,
   };
 }

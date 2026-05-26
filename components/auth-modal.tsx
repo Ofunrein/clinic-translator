@@ -195,7 +195,7 @@ function ModalOverlay({
         )}
 
         <p className="mt-4 text-center text-xs text-slate-500">
-          Authorized clinic staff only. All access is audited.
+          Create an account with your email. All access is audited.
         </p>
       </div>
     </div>,
@@ -479,7 +479,7 @@ function AuthSubmitBtn({
 function signupError(code: string | undefined): string {
   switch (code) {
     case "email_taken": return "An account with that email already exists.";
-    case "not_allowlisted": return "That email isn't on the clinic allowlist.";
+    case "not_allowlisted": return "Enter a valid email address.";
     case "password_too_short": return "Password must be at least 8 characters.";
     case "missing_fields": return "Email and password are required.";
     case "db_error": return "Server error — please try again in a moment.";

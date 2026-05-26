@@ -44,6 +44,13 @@ export interface UseSttResult {
 const TARGET_SR = 16000;
 const CHUNK_MS = 100;
 const BACKOFF_MS = [250, 500, 1000, 2000, 4000];
+const FLUX_MODEL = "flux-general-multi";
+
+interface DgConnection {
+  send: (chunk: ArrayBuffer) => void;
+  requestClose: () => void;
+}
+
 /** Boost quiet speakerphone / room pickup before Deepgram STT. */
 const DEFAULT_INPUT_GAIN = 2.5;
 
@@ -69,6 +76,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
   const [micMuted, setMicMuted] = React.useState(false);
   const [muted, setMutedState] = React.useState(false);
   const [analyser, setAnalyser] = React.useState<AnalyserNode | null>(null);
+  const captureChunkMs = sttModel === FLUX_MODEL ? 80 : CHUNK_MS;
 
   const setMuted = React.useCallback((next: boolean): void => {
     setMutedState(next);
@@ -83,7 +91,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
   // All long-lived refs go in one ref so cleanup is total.
   const internals = React.useRef<{
     ws: WebSocket | null;
-    dgConnection: ReturnType<ReturnType<typeof createClient>["listen"]["live"]> | null;
+    dgConnection: DgConnection | null;
     stream: MediaStream | null;
     audioCtx: AudioContext | null;
     sourceNode: MediaStreamAudioSourceNode | null;
@@ -125,7 +133,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
   }, [setStatus]);
 
   const connectDg = React.useCallback(
-    async (sendRef: { current: ((chunk: ArrayBuffer) => void) | null }): Promise<ReturnType<ReturnType<typeof createClient>["listen"]["live"]>> => {
+    async (sendRef: { current: ((chunk: ArrayBuffer) => void) | null }): Promise<DgConnection> => {
       // Fetch short-lived key from our authenticated endpoint.
       let key = "";
       try {
@@ -136,6 +144,138 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
         }
       } catch {
         // Fall through — Deepgram will reject with an auth error and we'll surface it.
+      }
+
+      if (sttModel === FLUX_MODEL) {
+        if (!key) {
+          setError("Deepgram token unavailable");
+        }
+        const url = new URL("wss://api.deepgram.com/v2/listen");
+        url.searchParams.set("model", FLUX_MODEL);
+        url.searchParams.set("encoding", "linear16");
+        url.searchParams.set("sample_rate", String(TARGET_SR));
+        url.searchParams.append("language_hint", "es");
+        url.searchParams.append("language_hint", "en");
+        url.searchParams.set("eot_timeout_ms", "1500");
+        const ws = key
+          ? new WebSocket(url.toString(), ["token", key])
+          : new WebSocket(url.toString());
+        ws.binaryType = "arraybuffer";
+
+        ws.onopen = () => {
+          internals.current.backoffIdx = 0;
+          setError(null);
+          setStatus("listening");
+          sendRef.current = (chunk: ArrayBuffer) => {
+            if (ws.readyState === WebSocket.OPEN) ws.send(chunk);
+          };
+        };
+
+        ws.onmessage = (ev: MessageEvent<string>) => {
+          try {
+            const d = JSON.parse(ev.data) as Record<string, unknown>;
+            const type = String(d.type ?? d.event ?? "");
+            if (type === "FatalError") {
+              const msg = String(d.message ?? d.description ?? "Deepgram Flux error");
+              setError(msg);
+              setStatus("offline", msg);
+              return;
+            }
+            const transcript = extractFluxTranscript(d);
+            if (!transcript) return;
+            const isFinal = isFluxTurnFinal(d);
+            if (isFinal) {
+              promotePartial(transcript, "");
+              const latestPatient = useSessionStore
+                .getState()
+                .transcript.filter((u) => u.role === "patient" && !u.isPartial)
+                .at(-1);
+              const uttId = latestPatient?.id;
+              if (uttId) {
+                fetch("/api/translate", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({
+                    text: transcript,
+                    src: "es",
+                    dst: "en",
+                    ...(sessionId ? { sessionId } : {}),
+                  }),
+                })
+                  .then(async (r) => {
+                    if (!r.ok) {
+                      setStatus("degraded", `translate failed (${r.status})`);
+                      return null;
+                    }
+                    return r.json() as Promise<{
+                      translation?: string;
+                      utterance_id?: string;
+                    } | null>;
+                  })
+                  .then((data) => {
+                    if (!data?.translation) return;
+                    const serverId = data.utterance_id;
+                    if (serverId && serverId !== uttId) {
+                      reconcileUtteranceId(uttId, serverId);
+                      setTranslation(serverId, data.translation);
+                    } else {
+                      setTranslation(uttId, data.translation);
+                    }
+                  })
+                  .catch(() => {
+                    setStatus("degraded", "translate request failed");
+                  });
+              }
+            } else {
+              addPartial(transcript);
+            }
+          } catch {
+            // Ignore non-JSON or unexpected frames.
+          }
+        };
+
+        ws.onerror = () => {
+          setError("Deepgram Flux connection error");
+        };
+
+        ws.onclose = (ev) => {
+          sendRef.current = null;
+          if (internals.current.closing) return;
+          if (ev.code === 1008 || ev.code === 1011) {
+            const msg = ev.reason || `Deepgram Flux closed (${ev.code})`;
+            setError(msg);
+          }
+          const delay = BACKOFF_MS[Math.min(internals.current.backoffIdx, BACKOFF_MS.length - 1)];
+          internals.current.backoffIdx += 1;
+          if (internals.current.backoffIdx > BACKOFF_MS.length) {
+            setStatus("offline", "STT reconnect exhausted");
+            return;
+          }
+          setStatus("degraded", `STT reconnecting in ${delay}ms`);
+          window.setTimeout(() => {
+            if (internals.current.closing) return;
+            void connectDg(sendRef).then((next) => {
+              internals.current.dgConnection = next;
+            });
+          }, delay);
+        };
+
+        return {
+          send(chunk: ArrayBuffer) {
+            if (ws.readyState === WebSocket.OPEN) ws.send(chunk);
+          },
+          requestClose() {
+            try {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "CloseStream" }));
+              }
+              ws.close();
+            } catch {
+              // noop
+            }
+          },
+        };
       }
 
       const deepgram = createClient(key);
@@ -243,7 +383,14 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
         }, delay);
       });
 
-      return connection;
+      return {
+        send(chunk: ArrayBuffer) {
+          connection.send(chunk);
+        },
+        requestClose() {
+          connection.requestClose();
+        },
+      };
     },
     [addPartial, promotePartial, reconcileUtteranceId, sessionId, setStatus, setTranslation, sttModel],
   );
@@ -358,7 +505,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
         const node = new AudioWorkletNode(audioCtx, "stt-pcm-encoder", {
           numberOfInputs: 1,
           numberOfOutputs: 0,
-          processorOptions: { targetSr: TARGET_SR, chunkMs: CHUNK_MS },
+          processorOptions: { targetSr: TARGET_SR, chunkMs: captureChunkMs },
         });
         node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
           sendChunk(ev.data);
@@ -386,7 +533,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
             sendChunk(buf);
           }
         };
-        rec.start(CHUNK_MS);
+        rec.start(captureChunkMs);
         i.recorder = rec;
       } catch (err: unknown) {
         setError(`Recorder init failed: ${errMsg(err)}`);
@@ -447,7 +594,7 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
       i.dgConnection = null;
       i.ws = null;
     };
-  }, [connectDg, deviceId, inputGain, mutedDb, mutedWindowMs, muted, setStatus]);
+  }, [connectDg, deviceId, inputGain, mutedDb, mutedWindowMs, muted, setStatus, captureChunkMs]);
 
   React.useEffect(() => {
     return () => {
@@ -469,6 +616,30 @@ export function useStt(opts: UseSttOptions = {}): UseSttResult {
     muted,
     setMuted,
   };
+}
+
+function extractFluxTranscript(frame: Record<string, unknown>): string {
+  const direct = frame.transcript;
+  if (typeof direct === "string") return direct.trim();
+  const channel = frame.channel as { alternatives?: Array<{ transcript?: string }> } | undefined;
+  const alt = channel?.alternatives?.[0]?.transcript;
+  if (typeof alt === "string") return alt.trim();
+  const alternatives = frame.alternatives as Array<{ transcript?: string }> | undefined;
+  const transcript = alternatives?.[0]?.transcript;
+  if (typeof transcript === "string") return transcript.trim();
+  return "";
+}
+
+function isFluxTurnFinal(frame: Record<string, unknown>): boolean {
+  const type = String(frame.type ?? frame.event ?? "").toLowerCase();
+  return Boolean(
+    frame.is_final === true ||
+    frame.speech_final === true ||
+    frame.end_of_turn === true ||
+    frame.turn_final === true ||
+    type === "endofturn" ||
+    type === "turninfo"
+  );
 }
 
 function errMsg(err: unknown): string {

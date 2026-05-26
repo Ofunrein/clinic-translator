@@ -194,15 +194,16 @@ export async function translate(args: DispatchTranslateArgs): Promise<TranslateR
 export interface DispatchSynthesizeArgs {
   text: string;
   config: TtsProvider;
+  speed?: number;
 }
 
 export async function synthesize(
   args: DispatchSynthesizeArgs,
 ): Promise<SynthesizeResult> {
-  const { text, config } = args;
+  const { text, config, speed } = args;
   switch (config.provider) {
     case "deepgram":
-      return synthesizeDeepgram({ text, voice: config.voice, engine: config.engine });
+      return synthesizeDeepgram({ text, voice: config.voice, engine: config.engine, speed });
     case "google-tts":
       return synthesizeGoogle({ text, voice: config.voice });
     case "polly":

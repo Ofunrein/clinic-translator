@@ -85,6 +85,7 @@ export function StaffPane({
   } | null>(null);
   const [countdown, setCountdown] = React.useState<number>(0);
   const [overrideEscalate, setOverrideEscalate] = React.useState(false);
+  const [ttsSpeed, setTtsSpeed] = React.useState(1);
   const cancelTimerRef = React.useRef<number | null>(null);
   const sendAndSpeakRef = React.useRef<() => Promise<void>>(async () => {});
   const cancelPreviewRef = React.useRef<() => void>(() => {});
@@ -215,7 +216,7 @@ export function StaffPane({
       cancelTimerRef.current = null;
     }
     const holdMs = previewHoldMsRef.current;
-    if (holdMs <= 0) {
+    if (holdMs <= 0 || !autoSendPreviewRef.current) {
       setCountdown(0);
       return;
     }
@@ -228,8 +229,6 @@ export function StaffPane({
         setCountdown(0);
         if (autoSendPreviewRef.current) {
           void sendAndSpeakRef.current();
-        } else {
-          cancelPreviewRef.current();
         }
         return;
       }
@@ -263,10 +262,10 @@ export function StaffPane({
       // Prevent stale queued clips from a previous voice/reply playing after this one.
       playerRef.current?.bargeIn();
       await tts.speak(
-        buildTtsRequest({ text: clean, sessionId, tts: selectedTts }),
+        buildTtsRequest({ text: clean, sessionId, tts: selectedTts, speed: ttsSpeed }),
       );
     },
-    [offline, tts, sessionId, selectedTts],
+    [offline, tts, sessionId, selectedTts, ttsSpeed],
   );
 
   const resendStaffMessage = React.useCallback(
@@ -276,14 +275,17 @@ export function StaffPane({
     [speakSpanish],
   );
 
-  const sendAndSpeak = React.useCallback(async () => {
-    if (!preview) return;
+  const sendPreviewAndSpeak = React.useCallback(async (message: {
+    en: string;
+    es: string;
+    utteranceId?: string;
+  }): Promise<void> => {
     if (cancelTimerRef.current !== null) {
       cancelAnimationFrame(cancelTimerRef.current);
       cancelTimerRef.current = null;
     }
     setCountdown(0);
-    const { en, es, utteranceId: previewUtteranceId } = preview;
+    const { en, es, utteranceId: previewUtteranceId } = message;
     try {
       await speakSpanish(es);
       let serverId = previewUtteranceId;
@@ -317,7 +319,28 @@ export function StaffPane({
     } catch {
       // status already flipped to `degraded` by the hook.
     }
-  }, [preview, speakSpanish, addStaff, suggest, sessionId]);
+  }, [speakSpanish, addStaff, suggest, sessionId]);
+
+  const sendAndSpeak = React.useCallback(async () => {
+    if (!preview) return;
+    await sendPreviewAndSpeak(preview);
+  }, [preview, sendPreviewAndSpeak]);
+
+  const submitTranslateAndSpeak = React.useCallback(async () => {
+    const en = text.trim();
+    if (!en || offline) return;
+    try {
+      const r = await translate.mutateAsync({
+        text: en,
+        src: "en",
+        dst: "es",
+        ...(sessionId ? { sessionId } : {}),
+      });
+      await sendPreviewAndSpeak({ en, es: r.translation, utteranceId: r.utterance_id });
+    } catch {
+      // status already flipped to `degraded` by the hook.
+    }
+  }, [text, translate, offline, sessionId, sendPreviewAndSpeak]);
 
   React.useEffect(() => {
     sendAndSpeakRef.current = sendAndSpeak;
@@ -331,7 +354,7 @@ export function StaffPane({
       void sendAndSpeak();
       return;
     }
-    void submitTranslate();
+    void submitTranslateAndSpeak();
   };
 
   React.useEffect(() => {
@@ -358,7 +381,6 @@ export function StaffPane({
     const en = suggest.suggestion.trim();
     if (!en || offline) return;
     setText(en);
-    await suggest.accept();
     try {
       const r = await translate.mutateAsync({
         text: en,
@@ -366,12 +388,11 @@ export function StaffPane({
         dst: "es",
         ...(sessionId ? { sessionId } : {}),
       });
-      setPreview({ en, es: r.translation, utteranceId: r.utterance_id });
-      startPreviewTimer();
+      await sendPreviewAndSpeak({ en, es: r.translation, utteranceId: r.utterance_id });
     } catch {
       // degraded status already handled by hook
     }
-  }, [suggest, translate, offline, sessionId, startPreviewTimer]);
+  }, [suggest, translate, offline, sessionId, sendPreviewAndSpeak]);
 
   const handleChipUseDraft = React.useCallback((): void => {
     setText(suggest.suggestion);
@@ -475,9 +496,24 @@ export function StaffPane({
               ? "Translating…"
               : preview
                 ? `${submitHint} to send`
-                : `${submitHint} to translate`}
+                : `${submitHint} to send & speak`}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              TTS speed
+              <input
+                type="range"
+                min="0.7"
+                max="1.5"
+                step="0.05"
+                value={ttsSpeed}
+                onChange={(e) => setTtsSpeed(Number(e.target.value))}
+                className="w-20"
+                aria-label="TTS speed"
+                data-testid="tts-speed"
+              />
+              <span className="tabular-nums">{ttsSpeed.toFixed(2)}×</span>
+            </label>
             {AI_ASSIST_ENABLED && suggest.suggestion && !suggest.isStreaming ? (
               <ConfidenceDot confidence={suggest.confidence} />
             ) : null}
@@ -516,7 +552,7 @@ export function StaffPane({
                   ? "Review Spanish, then Send & Speak"
                   : compose.autoSendPreview
                     ? `Auto-send in ${Math.max(0, Math.ceil(countdown / 100) / 10).toFixed(1)}s`
-                    : `Auto-cancel in ${Math.max(0, Math.ceil(countdown / 100) / 10).toFixed(1)}s`}
+                    : "Review Spanish, then Send & Speak"}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={cancelPreview}>

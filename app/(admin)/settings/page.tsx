@@ -296,6 +296,8 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
+      <CurrentSelectionCard cfg={cfg} />
+
       {needsMigration ? (
         <div className="flex flex-col gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2 text-sm">
@@ -419,6 +421,51 @@ export default function SettingsPage(): React.JSX.Element {
   );
 }
 
+
+function CurrentSelectionCard({ cfg }: { cfg: ProviderConfig }): React.JSX.Element {
+  const sttLabel = DEEPGRAM_STT_MODELS.find((m) => m.id === cfg.stt.model)?.label ?? cfg.stt.model;
+  const voiceLabel =
+    cfg.tts.provider === "deepgram"
+      ? deepgramEsVoiceLabel(
+          DEEPGRAM_AURA_ES_VOICES.find((v) => v.id === cfg.tts.voice) ??
+            DEEPGRAM_AURA_ES_VOICES.find((v) => v.id === DEFAULT_DEEPGRAM_VOICE)!,
+        )
+      : cfg.tts.voice;
+  const trEntry = getCatalogEntry("translate", cfg.translate.provider);
+  const trModel = trEntry?.models.find((m) => m.id === cfg.translate.model);
+  const sugEntry = getCatalogEntry("suggest", cfg.suggest.provider);
+  const sugModel = sugEntry?.models.find((m) => m.id === cfg.suggest.model);
+
+  const items = [
+    { label: "Mode", value: cfg.latencyMode },
+    { label: "STT", value: sttLabel },
+    { label: "Voice", value: voiceLabel },
+    { label: "Translate", value: trModel?.label ?? cfg.translate.model },
+    { label: "AI Assist", value: sugModel?.label ?? cfg.suggest.model },
+  ];
+
+  return (
+    <Card className="border-2 border-primary/50 bg-primary/5 shadow-sm">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Current selections</CardTitle>
+        <CardDescription>
+          These highlighted settings are active in the draft below. Click Save to apply them.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <Badge
+            key={item.label}
+            className="border border-primary/60 bg-primary text-primary-foreground shadow-sm"
+          >
+            {item.label}: {item.value}
+          </Badge>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Section: latency mode
 // ---------------------------------------------------------------------------
@@ -467,13 +514,18 @@ function LatencyModeCard({
                 className={
                   "flex flex-col rounded-md border p-3 text-left transition-colors " +
                   (active
-                    ? "border-primary bg-primary/5"
-                    : "hover:border-foreground/40")
+                    ? "border-primary bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30"
+                    : "bg-card hover:border-foreground/40 hover:bg-muted/50")
                 }
                 aria-pressed={active}
               >
+                {active ? (
+                  <span className="mb-2 w-fit rounded-full bg-primary-foreground px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    Selected
+                  </span>
+                ) : null}
                 <div className="text-sm font-semibold">{labels[m].title}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
+                <div className={"mt-1 text-xs " + (active ? "text-primary-foreground/85" : "text-muted-foreground")}>
                   {labels[m].sub}
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs">
@@ -593,7 +645,7 @@ function DeepgramVoiceCard({
               onSttChange({ provider: "deepgram", model, language: "es" })
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="border-2 border-primary/70 bg-primary/5 font-semibold shadow-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -613,7 +665,7 @@ function DeepgramVoiceCard({
               onTtsChange({ provider: "deepgram", voice, engine: "aura-2" })
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="border-2 border-primary/70 bg-primary/5 font-semibold shadow-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

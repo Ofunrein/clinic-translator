@@ -1,4 +1,4 @@
-// Integration test: NextAuth signIn callback enforces allowlist and mirrors
+// Integration test: NextAuth signIn callback accepts public valid emails and mirrors
 // users into staff_users. We mock the Drizzle db so this runs without Neon.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -89,13 +89,15 @@ async function loadConfig(): Promise<{
 }
 
 describe("NextAuth signIn callback", () => {
-  it("rejects emails not on the allowlist", async () => {
+  it("accepts valid public emails even when not allowlisted", async () => {
     const { signIn } = await loadConfig();
     const result = await signIn({
       user: { id: "u1", email: "stranger@example.com", name: "Stranger" },
     });
-    expect(result).toBe("/login?error=not_allowlisted");
-    expect(calls).toHaveLength(0);
+    expect(result).toBe(true);
+    expect(calls).toEqual([
+      { op: "insert", id: "u1", email: "stranger@example.com", name: "Stranger" },
+    ]);
   });
 
   it("rejects when email is missing", async () => {
@@ -104,7 +106,7 @@ describe("NextAuth signIn callback", () => {
     expect(result).toBe("/login?error=not_allowlisted");
   });
 
-  it("accepts allowlisted email and inserts staff_users row when missing", async () => {
+  it("accepts syntactically valid email and inserts staff_users row when missing", async () => {
     const { signIn } = await loadConfig();
     const result = await signIn({
       user: { id: "u-123", email: "Alice@CLINIC.com", name: "Alice" },
@@ -115,7 +117,7 @@ describe("NextAuth signIn callback", () => {
     ]);
   });
 
-  it("accepts wildcard-allowlisted email and updates existing staff_users row", async () => {
+  it("accepts valid email and updates existing staff_users row", async () => {
     existingRow = { id: "old-uuid", active: true };
     const { signIn } = await loadConfig();
     const result = await signIn({
@@ -127,7 +129,7 @@ describe("NextAuth signIn callback", () => {
     ]);
   });
 
-  it("rejects allowlisted but deactivated staff", async () => {
+  it("rejects valid but deactivated staff", async () => {
     existingRow = { id: "old-uuid", active: false };
     const { signIn } = await loadConfig();
     const result = await signIn({
