@@ -87,6 +87,11 @@ interface SseDelta {
     delta?: { content?: string | null };
     finish_reason?: string | null;
   }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 export interface SuggestGroqArgs {
@@ -97,8 +102,9 @@ export interface SuggestGroqArgs {
 }
 
 export type SuggestGroqEvent =
-  | { token: string; final?: never }
-  | { token?: never; final: SuggestionResult };
+  | { token: string; final?: never; usage?: never }
+  | { token?: never; final: SuggestionResult; usage?: never }
+  | { token?: never; final?: never; usage: { promptTokens: number; completionTokens: number } };
 
 function clampConfidence(n: unknown): number {
   if (typeof n !== "number" || Number.isNaN(n)) return 0;
@@ -198,6 +204,7 @@ export async function* suggestReplyGroq(
         max_tokens: 512,
         response_format: { type: "json_object" },
         stream: true,
+        stream_options: { include_usage: true },
         messages,
       }),
     });
@@ -228,6 +235,7 @@ export async function* suggestReplyGroq(
             max_tokens: 512,
             response_format: { type: "json_object" },
             stream: true,
+            stream_options: { include_usage: true },
             messages,
           }),
         });
@@ -290,6 +298,15 @@ export async function* suggestReplyGroq(
           assembled += delta;
           yield { token: delta };
         }
+        // Groq emits a final frame with top-level usage when stream_options.include_usage=true
+        if (parsed.usage && (!parsed.choices || parsed.choices.length === 0)) {
+          yield {
+            usage: {
+              promptTokens: parsed.usage.prompt_tokens,
+              completionTokens: parsed.usage.completion_tokens,
+            },
+          };
+        }
       }
     }
   } catch (err) {
@@ -338,12 +355,18 @@ export interface TranslateGroqArgs {
 export interface TranslateGroqResult {
   translation: string;
   glossary_hits: { en: string; es: string }[];
+  usage?: { promptTokens: number; completionTokens: number };
 }
 
 interface ChatCompletionResponse {
   choices?: Array<{
     message?: { content?: string | null };
   }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 function buildTranslateUserPrompt(args: TranslateGroqArgs): string {
@@ -466,5 +489,8 @@ export async function translateGroq(
     });
   }
 
-  return { translation, glossary_hits: args.glossaryHits ?? [] };
+  const usage = parsed.usage
+    ? { promptTokens: parsed.usage.prompt_tokens, completionTokens: parsed.usage.completion_tokens }
+    : undefined;
+  return { translation, glossary_hits: args.glossaryHits ?? [], usage };
 }
