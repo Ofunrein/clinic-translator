@@ -13,6 +13,7 @@ import { synthesize as dispatchSynthesize } from "@/lib/providers/clients";
 import { DEFAULT_CLINIC_ID, getActiveProviderConfig } from "@/lib/settings";
 import { ValidationError, errorToResponse, newTraceId } from "@/lib/api/errors";
 import { recordAudit } from "@/lib/audit";
+import { recordUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,16 @@ export async function POST(req: Request): Promise<Response> {
     });
 
     const result = await dispatchSynthesize({ text: body.text, config: ttsConfig });
+
+    void recordUsage({
+      route: "tts",
+      provider: ttsConfig.provider,
+      model: ttsConfig.engine,
+      promptTokens: null,
+      completionTokens: null,
+      ttsChars: body.text.length,
+      sessionId: body.sessionId ?? null,
+    }).catch((err: unknown) => console.error("[usage] tts record failed", err));
 
     if (body.sessionId) {
       // Audit the TTS read against the call so the access log is complete.

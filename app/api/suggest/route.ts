@@ -28,6 +28,7 @@ import { DEFAULT_CLINIC, type ClinicConfig } from "@/lib/clinic-prompts";
 import type { Dialect } from "@/lib/medical-glossary";
 import { requireUser } from "@/lib/api/auth";
 import { suggestRequestSchema } from "@/lib/api/zod-schemas";
+import { recordUsage } from "@/lib/usage";
 import {
   ForbiddenError,
   NotFoundError,
@@ -245,6 +246,7 @@ export async function POST(req: Request): Promise<Response> {
       try {
         // Best-effort upper bound on token frames — caller can also abort.
         let final: SuggestionResult | null = null;
+        let usageData: { promptTokens: number; completionTokens: number } | undefined;
         const active = await getActiveProviderConfig();
         for await (const event of dispatchSuggestReply({
           transcript,
@@ -257,7 +259,20 @@ export async function POST(req: Request): Promise<Response> {
           } else if ("final" in event && event.final) {
             final = event.final;
             controller.enqueue(sseFrame({ final: event.final }));
+          } else if ("usage" in event && event.usage) {
+            usageData = event.usage;
           }
+        }
+        if (usageData) {
+          void recordUsage({
+            route: "suggest",
+            provider: active.suggest.provider,
+            model: active.suggest.model,
+            promptTokens: usageData.promptTokens,
+            completionTokens: usageData.completionTokens,
+            ttsChars: null,
+            sessionId: null,
+          }).catch((err: unknown) => console.error("[usage] suggest record failed", err));
         }
         if (final && utteranceInDb) {
           await persistSuggestion({

@@ -19,6 +19,7 @@ import { encryptPHI } from "@/lib/crypto";
 import { recordAudit } from "@/lib/audit";
 import { translate as dispatchTranslate } from "@/lib/providers/clients";
 import { getActiveProviderConfig } from "@/lib/settings";
+import { recordUsage } from "@/lib/usage";
 import { findGlossaryHits, type Dialect } from "@/lib/medical-glossary";
 import { requireUser } from "@/lib/api/auth";
 import { translateBodySchema } from "@/lib/api/zod-schemas";
@@ -62,8 +63,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     const hits = findGlossaryHits(body.text, dialect);
 
     let result;
+    let cfg: Awaited<ReturnType<typeof getActiveProviderConfig>>;
     try {
-      const cfg = await getActiveProviderConfig();
+      cfg = await getActiveProviderConfig();
       result = await dispatchTranslate({
         text: body.text,
         src: body.src,
@@ -85,6 +87,16 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
       throw err;
     }
+
+    void recordUsage({
+      route: "translate",
+      provider: cfg.translate.provider,
+      model: cfg.translate.model,
+      promptTokens: result.usage?.promptTokens ?? null,
+      completionTokens: result.usage?.completionTokens ?? null,
+      ttsChars: null,
+      sessionId: body.sessionId ?? null,
+    }).catch((err: unknown) => console.error("[usage] translate record failed", err));
 
     // Persist when bound to a session — best effort only.
     // Groq translation must still reach the client if insert fails.
