@@ -1,0 +1,477 @@
+# Instincts generated from https://github.com/Ofunrein/clinic-translator
+# Generated: 2026-05-26T04:58:31.923Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: clinic-translator-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat, fix, test, docs
+
+## Evidence
+
+- 9 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat(stt): make buildDeepgramUrl accept model param, default nova-3, fix(tts): remove forceFresh; add voice logging; cache-control no-store
+
+---
+id: clinic-translator-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Commit Length
+
+## Action
+
+Write moderate-length commit messages (~70 characters)
+
+## Evidence
+
+- Average commit message length: 70 chars
+- Based on 9 commits
+
+---
+id: clinic-translator-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: clinic-translator-import-alias
+trigger: "when importing modules"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Import Alias
+
+## Action
+
+Use path aliases (@/, ~/) instead of relative imports
+
+## Evidence
+
+- Import analysis shows alias pattern
+- Example: import { x } from '@/lib/x'
+
+---
+id: clinic-translator-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: clinic-translator-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: clinic-translator-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: clinic-translator-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: clinic-translator-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~27x per month
+- Files: lib/*, tests/unit/*, lib/providers/*
+
+---
+id: clinic-translator-workflow-feature-addition-with-unit-tests
+trigger: "when doing feature addition with unit tests"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Workflow Feature Addition With Unit Tests
+
+## Action
+
+Follow the feature-addition-with-unit-tests workflow:
+1. Modify or create implementation files in lib/ or lib/providers/
+2. Add or update corresponding unit test files in tests/unit/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: lib/deepgram.ts, lib/providers/registry.ts, lib/tts-request.ts
+
+---
+id: clinic-translator-workflow-feature-threading-through-hooks-and-components
+trigger: "when doing feature threading through hooks and components"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Ofunrein/clinic-translator
+---
+
+# Clinic Translator Workflow Feature Threading Through Hooks And Components
+
+## Action
+
+Follow the feature-threading-through-hooks-and-components workflow:
+1. Update React component(s) in components/ to accept or use new prop/data
+2. Update or create custom hook(s) in lib/hooks/ to handle new prop/data
+3. Optionally update provider files in lib/providers/ if provider logic is affected
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: components/PatientPane.tsx, components/StaffPane.tsx, lib/hooks/useStt.ts
+
+---
+id: clinic-translator-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct File Naming
+
+## Action
+
+Name the file using camelCase (e.g., myFeature.ts)
+
+## Evidence
+
+- Pattern in namingConventions.files
+- lib/deepgram.ts
+- lib/tts-request.ts
+
+---
+id: clinic-translator-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Function Naming
+
+## Action
+
+Use camelCase for function names (e.g., buildDeepgramUrl)
+
+## Evidence
+
+- Pattern in namingConventions.functions
+- buildDeepgramUrl in lib/deepgram.ts
+
+---
+id: clinic-translator-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names (e.g., DeepgramProvider)
+
+## Evidence
+
+- Pattern in namingConventions.classes
+
+---
+id: clinic-translator-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants
+
+---
+id: clinic-translator-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Import Style
+
+## Action
+
+Use alias import style
+
+## Evidence
+
+- Pattern in importStyle: alias
+
+---
+id: clinic-translator-instinct-export-style
+trigger: "When exporting functions or classes"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: clinic-translator-instinct-unit-test-location
+trigger: "When adding or updating unit tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Unit Test Location
+
+## Action
+
+Place test files in tests/unit/ and use *.test.ts naming
+
+## Evidence
+
+- tests/unit/deepgram-url.test.ts
+- tests/unit/providers-registry.test.ts
+- testing.filePattern
+
+---
+id: clinic-translator-instinct-unit-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Unit Test Framework
+
+## Action
+
+Use the vitest framework
+
+## Evidence
+
+- testing.framework: vitest
+- Pattern in test files
+
+---
+id: clinic-translator-instinct-unit-test-type
+trigger: "When writing new tests"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Unit Test Type
+
+## Action
+
+Focus on unit tests for new or changed logic
+
+## Evidence
+
+- testing.testTypes: unit
+- tests/unit/*
+
+---
+id: clinic-translator-instinct-commit-format
+trigger: "When making a git commit"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Commit Format
+
+## Action
+
+Use Conventional Commits with type prefix (feat, fix, test, docs), optional scope, and concise message (average ~70 chars)
+
+## Evidence
+
+- feat(stt): make buildDeepgramUrl accept model param, default nova-3
+- fix(tts): remove forceFresh; add voice logging; cache-control no-store
+- test(tts): add buildTtsRequest regression tests for voice id shape and non-deepgram providers
+
+---
+id: clinic-translator-instinct-feature-addition-with-unit-tests
+trigger: "When adding a new feature or enhancement and want to validate it with tests"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Feature Addition With Unit Tests
+
+## Action
+
+Modify or create implementation files in lib/ or lib/providers/, then add or update corresponding unit test files in tests/unit/
+
+## Evidence
+
+- Workflow: feature-addition-with-unit-tests
+- Commits and files: lib/deepgram.ts, tests/unit/deepgram-url.test.ts
+
+---
+id: clinic-translator-instinct-feature-threading-through-hooks-and-components
+trigger: "When making a new setting or feature available throughout the UI and logic layers"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: Ofunrein/clinic-translator
+---
+
+# Clinic Translator Instinct Feature Threading Through Hooks And Components
+
+## Action
+
+Update React components in components/ to accept/use new prop/data, update or create custom hooks in lib/hooks/, and update provider files in lib/providers/ if needed
+
+## Evidence
+
+- Workflow: feature-threading-through-hooks-and-components
+- Commits and files: components/PatientPane.tsx, lib/hooks/useStt.ts
+
