@@ -46,7 +46,11 @@ import {
 } from "./clients/openai";
 import { suggestReplyGroq, translateGroq } from "./clients/groq";
 
-export type TranslateResult = Awaited<ReturnType<typeof translateBedrock>>;
+export interface TranslateResult {
+  translation: string;
+  glossary_hits: Array<{ en: string; es: string; category?: string }>;
+  usage?: { promptTokens: number; completionTokens: number };
+}
 export type SuggestStreamEvent = BedrockSuggestStreamEvent;
 export type SynthesizeResult = Awaited<ReturnType<typeof synthesizeGoogle>>;
 
@@ -175,6 +179,7 @@ export async function translate(args: DispatchTranslateArgs): Promise<TranslateR
           es: h.term.es,
           category: h.term.category,
         })),
+        usage: out.usage,
       };
     }
     default: {
