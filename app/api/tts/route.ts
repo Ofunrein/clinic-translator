@@ -38,13 +38,20 @@ export async function POST(req: Request): Promise<Response> {
     // Resolve active TTS config; if the body specifies an override `voice`,
     // we honor it on top of the active provider blob. The B3 frontend
     // currently passes only `text`, so the active config wins by default.
-    // Force a fresh read so a just-saved Settings voice is used immediately.
-    const active = await getActiveProviderConfig(DEFAULT_CLINIC_ID, {
-      forceFresh: true,
-    });
+    const active = await getActiveProviderConfig(DEFAULT_CLINIC_ID);
     const ttsConfig = body.voice
       ? { ...active.tts, voice: body.voice }
       : active.tts;
+
+    console.info("[tts] resolved config", {
+      traceId,
+      provider: ttsConfig.provider,
+      engine: ttsConfig.engine,
+      requestedVoice: body.voice ?? null,
+      resolvedVoice: ttsConfig.voice,
+      textChars: body.text.length,
+      sessionIdPresent: Boolean(body.sessionId),
+    });
 
     const result = await dispatchSynthesize({ text: body.text, config: ttsConfig });
 
@@ -59,13 +66,14 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    // Stream MP3. Cache headers honor spec §5.2 step 4 + §6 caching guidance.
+    // Stream MP3. Do not HTTP-cache dynamic TTS here; voice + text must match
+    // the current request. If caching returns, key it explicitly by text+voice+engine.
     return new Response(new Uint8Array(result.audio), {
       status: 200,
       headers: {
         "content-type": "audio/mpeg",
         "content-length": String(result.audio.byteLength),
-        "cache-control": "private, max-age=86400",
+        "cache-control": "no-store",
         "x-tts-cache": result.cacheHit ? "hit" : "miss",
         "x-tts-voice": result.voice,
         "x-trace-id": traceId,
