@@ -438,8 +438,8 @@ function LatencyModeCard({
     },
     accurate: {
       title: "Accurate",
-      sub: "Nova-3 STT · Groq 70B · keeps selected voice",
-      p50: "~1.1 s",
+      sub: "Nova-3 STT · GPT-OSS 120B · keeps selected voice",
+      p50: "~1.3 s",
     },
   };
   return (

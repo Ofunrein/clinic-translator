@@ -196,6 +196,13 @@ const translate: Record<string, ProviderCatalogEntry> = {
         costPer1k: 0.00005,
         baseLatencyMs: 120,
       },
+      // Verify exact model ID at console.groq.com/docs/models — free tier, ~500 tok/s.
+      {
+        id: "gpt-oss-120b",
+        label: "OpenAI GPT-OSS 120B (MoE, 131K ctx, free tier)",
+        costPer1k: 0,
+        baseLatencyMs: 280,
+      },
     ],
     voices: [],
     engines: [],

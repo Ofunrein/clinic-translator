@@ -29,9 +29,11 @@ const BALANCED: ProviderConfig = {
 
 const ACCURATE: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
-  translate: { provider: "groq", model: "llama-3.3-70b-versatile" },
+  // GPT-OSS 120B: MoE model, best reasoning on Groq free tier — verify model ID
+  // at console.groq.com/docs/models if Groq updates their catalog.
+  translate: { provider: "groq", model: "gpt-oss-120b" },
   tts: DEFAULT_TTS,
-  suggest: { provider: "groq", model: "llama-3.3-70b-versatile" },
+  suggest: { provider: "groq", model: "gpt-oss-120b" },
   latencyMode: "accurate",
   realtimeMode: "text-middleman",
 };
