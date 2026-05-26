@@ -26,7 +26,10 @@ import { useTranslate } from "@/lib/hooks/useTranslate";
 import { useTts } from "@/lib/hooks/useTts";
 import { useSuggest } from "@/lib/hooks/useSuggest";
 import { useStaffComposeSettings } from "@/lib/hooks/useStaffCompose";
+import { useClinicSettings } from "@/lib/hooks/useClinicSettings";
 import { useSessionStore } from "@/lib/session";
+import { buildTtsRequest } from "@/lib/tts-request";
+import type { TtsProvider } from "@/lib/providers/types";
 import { persistUtteranceToServer } from "@/lib/transcript-sync";
 import { cn, isSubmitChord, submitChordLabel } from "@/lib/utils";
 import {
@@ -69,6 +72,8 @@ export function StaffPane({
   const tts = useTts(playerRef);
   const suggest = useSuggest({ enabled: AI_ASSIST_ENABLED });
   const compose = useStaffComposeSettings();
+  const settingsQ = useClinicSettings();
+  const selectedTts = settingsQ.data?.tts as TtsProvider | undefined;
   const previewHoldMs = compose.previewHoldMs || PREVIEW_HOLD_MS_DEFAULT;
   const audio = useAudioContext();
 
@@ -251,12 +256,24 @@ export function StaffPane({
     }
   }, [text, translate, offline, sessionId, startPreviewTimer]);
 
+  const speakSpanish = React.useCallback(
+    async (es: string): Promise<void> => {
+      const clean = es.trim();
+      if (!clean || offline) return;
+      // Prevent stale queued clips from a previous voice/reply playing after this one.
+      playerRef.current?.bargeIn();
+      await tts.speak(
+        buildTtsRequest({ text: clean, sessionId, tts: selectedTts }),
+      );
+    },
+    [offline, tts, sessionId, selectedTts],
+  );
+
   const resendStaffMessage = React.useCallback(
     async (es: string): Promise<void> => {
-      if (!es.trim() || offline) return;
-      await tts.speak({ text: es });
+      await speakSpanish(es);
     },
-    [offline, tts],
+    [speakSpanish],
   );
 
   const sendAndSpeak = React.useCallback(async () => {
@@ -268,7 +285,7 @@ export function StaffPane({
     setCountdown(0);
     const { en, es, utteranceId: previewUtteranceId } = preview;
     try {
-      await tts.speak({ text: es });
+      await speakSpanish(es);
       let serverId = previewUtteranceId;
       if (!serverId && sessionId) {
         serverId =
@@ -300,7 +317,7 @@ export function StaffPane({
     } catch {
       // status already flipped to `degraded` by the hook.
     }
-  }, [preview, tts, addStaff, suggest, sessionId]);
+  }, [preview, speakSpanish, addStaff, suggest, sessionId]);
 
   React.useEffect(() => {
     sendAndSpeakRef.current = sendAndSpeak;

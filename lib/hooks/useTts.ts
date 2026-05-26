@@ -11,6 +11,7 @@ import type { AudioPlayerHandle } from "@/components/AudioPlayer";
 export interface TtsRequest {
   text: string;
   voice?: string;
+  sessionId?: string;
 }
 
 interface ApiError {
