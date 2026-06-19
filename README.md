@@ -4,6 +4,9 @@ Real-time Spanish to English translator built for clinic phone triage. A patient
 
 Staff drive everything. No automated voice agent. Nothing sends without an explicit click.
 
+<img width="1168" height="618" alt="image" src="https://github.com/user-attachments/assets/8d78da68-7ea6-4c9a-aec4-611fd92638b4" />
+
+
 ## How it works
 
 Staff click Start Call. The browser asks for mic access and opens a WebSocket to Deepgram Nova-3, which streams Spanish speech to text in real time. Partials show up greyed out as the patient talks. Once Deepgram finalizes an utterance, the transcript locks in and the translation pipeline picks it up.
