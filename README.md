@@ -5,6 +5,13 @@ Real-time Spanish to English translator built for clinic phone triage. A patient
 Staff drive everything. No automated voice agent. Nothing sends without an explicit click.
 
 <img width="1168" height="618" alt="image" src="https://github.com/user-attachments/assets/8d78da68-7ea6-4c9a-aec4-611fd92638b4" />
+<img width="628" height="496" alt="image" src="https://github.com/user-attachments/assets/836eaf93-f74a-4681-829b-91baa66ec1f3" />
+<img width="649" height="541" alt="image" src="https://github.com/user-attachments/assets/ad80cabe-a4d4-441e-a853-6b3f1c096930" />
+<img width="779" height="423" alt="image" src="https://github.com/user-attachments/assets/8da658a5-e311-44c2-ab34-235048d4fa83" />
+<img width="750" height="284" alt="image" src="https://github.com/user-attachments/assets/61484753-d7ca-499b-8c8e-241546c40beb" />
+
+
+
 
 
 ## How it works
