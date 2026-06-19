@@ -42,7 +42,6 @@ Urgency detection runs the whole time. If the patient says anything matching the
 <img width="616" height="655" alt="image" src="https://github.com/user-attachments/assets/48f14971-a033-4442-9bfe-de7613e0b6b6" />
 <img width="700" height="593" alt="image" src="https://github.com/user-attachments/assets/e48557c6-e438-43ed-8e64-de1f0948f879" />
 <img width="775" height="446" alt="image" src="https://github.com/user-attachments/assets/b2cd3781-2bfe-4ccc-bf2f-c508745b525c" />
-<img width="704" height="419" alt="image" src="https://github.com/user-attachments/assets/268084ad-cf43-4cdd-8c90-5bca445ac087" />
 <img width="759" height="398" alt="image" src="https://github.com/user-attachments/assets/9a2f3266-f562-44b2-827d-5115c879892a" />
 
 
