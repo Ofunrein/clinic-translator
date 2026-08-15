@@ -7,7 +7,7 @@
 // not throw at import time. The dispatcher itself never touches the DB.
 process.env.DATABASE_URL ??= "postgresql://stub:stub@localhost:5432/stub";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   translate,
   synthesize,
@@ -132,11 +132,13 @@ describe("providers/clients dispatcher", () => {
       expect(result.voice).toBe("aura-2-javier-es");
     });
 
-    it("polly / cartesia / openai-tts / elevenlabs stubs throw TTSError(ProviderNotImplementedError)", async () => {
+    // openai-tts is no longer in this list: it is implemented, so it reaches the
+    // network instead of throwing ProviderNotImplementedError. Its unconfigured
+    // path is covered by the test below.
+    it("polly / cartesia / elevenlabs stubs throw TTSError(ProviderNotImplementedError)", async () => {
       const cases: Array<Parameters<typeof synthesize>[0]["config"]> = [
         { provider: "polly", voice: "Lupe", engine: "generative" },
         { provider: "cartesia", voice: "sonic-2-es-female", engine: "sonic-2" },
-        { provider: "openai-tts", voice: "nova", engine: "tts-1" },
         { provider: "elevenlabs", voice: "turbo-v2-5-es", engine: "turbo-v2-5" },
       ];
       for (const config of cases) {
@@ -144,6 +146,17 @@ describe("providers/clients dispatcher", () => {
         expect(e).toBeInstanceOf(TTSError);
         expect((e as TTSError).cause).toBeInstanceOf(ProviderNotImplementedError);
       }
+    });
+
+    it("openai-tts refuses to call out without a key", async () => {
+      vi.stubEnv("OPENAI_API_KEY", "");
+      const e = await synthesize({
+        text: "hola",
+        config: { provider: "openai-tts", voice: "nova", engine: "tts-1" },
+      }).catch((err) => err);
+      vi.unstubAllEnvs();
+      expect(e).toBeInstanceOf(TTSError);
+      expect((e as TTSError).message).toContain("OPENAI_API_KEY");
     });
   });
 

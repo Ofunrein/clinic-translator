@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   synthesizeDeepgram,
   __setDeepgramTtsFetchForTest,
@@ -14,6 +14,9 @@ describe("deepgram-tts", () => {
   });
 
   it("throws TTSError when DEEPGRAM_API_KEY is missing", async () => {
+    // Stubbed, not assumed: with a real key in the environment this test would
+    // otherwise call Deepgram for real and resolve.
+    vi.stubEnv("DEEPGRAM_API_KEY", "");
     await expect(
       synthesizeDeepgram({
         text: "hola",
@@ -21,6 +24,7 @@ describe("deepgram-tts", () => {
         engine: "aura-2",
       }),
     ).rejects.toBeInstanceOf(TTSError);
+    vi.unstubAllEnvs();
   });
 
   it("POSTs to /v1/speak with model and returns mp3 buffer", async () => {

@@ -104,6 +104,20 @@ export function findGlossaryHits(text: string, dialect: Dialect = "all"): Glossa
 
   const raw = scanSubstrings(text, ordered, (term) => [term.en, term.es]);
 
+  // Two things nest: a term's own EN and ES forms ("ibuprofen" inside
+  // "ibuprofeno"), and one term inside another ("vacuna" inside "vacuna contra la
+  // gripe"). Claiming spans in glossary order lets the shorter needle win, which
+  // reports the wrong language or the wrong term. Longest match wins within a
+  // dialect group; the group order still lets a dialect-specific term beat `all`.
+  const groupRank = new Map<GlossaryTerm, number>(
+    ordered.map((term) => [term, term.dialect === "all" ? 1 : 0]),
+  );
+  raw.sort(
+    (a, b) =>
+      (groupRank.get(a.item) ?? 0) - (groupRank.get(b.item) ?? 0) ||
+      b.end - b.start - (a.end - a.start),
+  );
+
   const hits: GlossaryHit[] = [];
   for (const m of raw) {
     if (!overlaps(m.start, m.end)) {

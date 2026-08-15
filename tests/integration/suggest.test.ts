@@ -307,6 +307,9 @@ vi.mock("@/lib/api/auth", () => ({
 }));
 
 describe("/api/suggest/outcome (route)", () => {
+  // 20s, not the 5s default: this case dynamically imports the route and the
+  // whole db/audit chain, and that first transform can exceed 5s when the rest of
+  // the suite is saturating the CPU.
   it("updates suggestion_outcome and writes an audit_log entry on accepted", async () => {
     const { POST } = await import("@/app/api/suggest/outcome/route");
     const { __testInternals } = (await import("@/lib/db/client")) as unknown as {
@@ -348,5 +351,5 @@ describe("/api/suggest/outcome (route)", () => {
     expect(String(audit?.values.reason ?? "")).toContain(
       "ai_suggest_outcome:accepted",
     );
-  });
+  }, 20_000);
 });

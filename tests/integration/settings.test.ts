@@ -88,15 +88,33 @@ vi.mock("@/lib/api/auth", () => ({
   },
 }));
 
+// The real roles module imports the NextAuth handler, which builds a Drizzle
+// adapter over the mocked db client and throws. The route only needs role
+// checks, so the auth surface is stubbed out.
+vi.mock("@/lib/auth/config", () => ({
+  auth: async () => ({ user: { id: "user_admin", email: "admin@example.com" } }),
+}));
+
 vi.mock("@/lib/auth/roles", async () => {
-  const actual = await vi.importActual<Record<string, unknown>>("@/lib/auth/roles");
+  // Build the error class on top of the BaseApiError the route itself will load.
+  // vi.importActual() would pull a parallel copy of lib/api/errors, so
+  // errorToResponse's `instanceof BaseApiError` check would miss and turn the
+  // 403 into a 500.
+  const { BaseApiError } = await import("@/lib/api/errors");
+  class AuthorizationError extends BaseApiError {
+    readonly code: "unauthenticated" | "forbidden";
+    readonly status: number;
+    constructor(code: "unauthenticated" | "forbidden", message: string) {
+      super(message, { retryable: false });
+      this.name = "AuthorizationError";
+      this.code = code;
+      this.status = code === "unauthenticated" ? 401 : 403;
+    }
+  }
   return {
-    ...actual,
+    AuthorizationError,
     requireRole: async (_req: Request, allowed: readonly string[]) => {
       if (!allowed.includes(state.role)) {
-        const { AuthorizationError } = actual as {
-          AuthorizationError: new (code: string, msg: string) => Error;
-        };
         throw new AuthorizationError("forbidden", `role ${state.role} not permitted`);
       }
       return { userId: "00000000-0000-0000-0000-000000000099", role: state.role };
@@ -115,7 +133,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.resetModules();
+  // No vi.resetModules() here: it hands each test a fresh module graph while the
+  // vi.mock factories keep their first-run instances, so `instanceof` checks
+  // across the boundary (BaseApiError in errorToResponse) start missing. The
+  // settings cache is reset explicitly in importRoute() instead.
+  vi.clearAllMocks();
 });
 
 async function importRoute(): Promise<typeof import("@/app/api/settings/route")> {

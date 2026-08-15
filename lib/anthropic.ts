@@ -128,7 +128,10 @@ function buildUserPrompt(args: TranslateArgs, hits: GlossaryHit[]): string {
 
 function decodeBody(body: unknown): string {
   if (!body) throw new TranslateError("empty bedrock response", { retryable: true });
-  if (body instanceof Uint8Array) {
+  // ArrayBuffer.isView, not `instanceof Uint8Array`: the SDK hands back a Buffer
+  // or a view created in another realm (jsdom, worker, vm), and a realm-crossing
+  // typed array fails the instanceof check while decoding perfectly well.
+  if (ArrayBuffer.isView(body)) {
     return new TextDecoder().decode(body);
   }
   if (

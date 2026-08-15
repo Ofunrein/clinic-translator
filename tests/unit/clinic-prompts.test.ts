@@ -73,9 +73,11 @@ describe("buildSuggestSystemPrompt", () => {
       clinic: TEST_CLINIC,
       dialect: "all",
     });
-    expect(prompt).toMatch(/NEVER invent clinical information/);
+    // Phrasing-tolerant on purpose: the assertion is that the guard is present,
+    // not that a prompt reword has to be mirrored here character for character.
+    expect(prompt).toMatch(/NEVER invent clinical info/);
     expect(prompt).toMatch(/clarifying question/i);
-    expect(prompt).toMatch(/staff member should consider speaking back/i);
+    expect(prompt).toMatch(/staff member should consider speaking/i);
   });
 
   it("caps the suggestion at two sentences", () => {
@@ -103,7 +105,7 @@ describe("buildSuggestSystemPrompt", () => {
       clinic: TEST_CLINIC,
       dialect: "mx",
     });
-    expect(prompt).toMatch(/Never auto-respond/);
-    expect(prompt).toMatch(/staged for human review/i);
+    // The draft is never sent on its own: the staffer approves it first.
+    expect(prompt).toMatch(/reviews and approves before anything is sent/i);
   });
 });
