@@ -99,7 +99,7 @@ describe("LATENCY_PRESETS", () => {
     expect(cfg.stt.provider).toBe("deepgram");
     expect(cfg.stt.model).toBe("nova-3");
     expect(cfg.translate.provider).toBe("groq");
-    expect(cfg.translate.model).toBe("llama-3.3-70b-versatile");
+    expect(cfg.translate.model).toBe("openai/gpt-oss-120b");
     expect(cfg.suggest.provider).toBe("groq");
     expect(cfg.tts.provider).toBe("deepgram");
     expect(cfg.tts.voice).toBe("aura-2-olivia-es");
@@ -112,6 +112,6 @@ describe("LATENCY_PRESETS", () => {
     const a: ProviderConfig = applyPreset("balanced");
     a.translate.model = "tampered";
     const b: ProviderConfig = applyPreset("balanced");
-    expect(b.translate.model).toBe("llama-3.3-70b-versatile");
+    expect(b.translate.model).toBe("openai/gpt-oss-120b");
   });
 });

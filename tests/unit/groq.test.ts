@@ -41,7 +41,7 @@ describe("isModelNotFound", () => {
         expect(body.model).toBe("gpt-oss-120b");
         return makeTextResponse(MODEL_NOT_FOUND_BODY, 404);
       }
-      expect(body.model).toBe("llama-3.3-70b-versatile");
+      expect(body.model).toBe("openai/gpt-oss-20b");
       return makeTranslateOkResponse();
     });
     const result = await translateGroq({ text: "hola", src: "es", dst: "en", model: "gpt-oss-120b" });
@@ -94,7 +94,7 @@ describe("suggestReplyGroq fallback", () => {
         expect(body.model).toBe("gpt-oss-120b");
         return new Response(MODEL_NOT_FOUND_BODY_SUGGEST, { status: 404, headers: { "Content-Type": "application/json" } });
       }
-      expect(body.model).toBe("llama-3.3-70b-versatile");
+      expect(body.model).toBe("openai/gpt-oss-20b");
       return makeSuggestOkResponse();
     });
 
@@ -129,7 +129,7 @@ describe("suggestReplyGroq fallback", () => {
       return new Response(MODEL_NOT_FOUND_BODY_SUGGEST, { status: 404, headers: { "Content-Type": "application/json" } });
     });
     const run = async () => {
-      for await (const _ev of suggestReplyGroq({ ...SUGGEST_ARGS, model: "llama-3.3-70b-versatile" })) { void _ev; }
+      for await (const _ev of suggestReplyGroq({ ...SUGGEST_ARGS, model: "openai/gpt-oss-20b" })) { void _ev; }
     };
     await expect(run()).rejects.toBeInstanceOf(SuggestError);
     expect(callCount).toBe(1);

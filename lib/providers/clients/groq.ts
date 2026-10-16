@@ -13,15 +13,15 @@ import type { Dialect } from "@/lib/medical-glossary";
 import type { SuggestionResult, SuggestTurn } from "@/lib/anthropic";
 
 const GROQ_BASE = "https://api.groq.com/openai/v1";
-const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
-export const GROQ_FALLBACK_MODEL = "llama-3.3-70b-versatile";
+export const GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b";
 
 export function isModelNotFound(status: number, body: string): boolean {
   if (status !== 404) return false;
   try {
-    const parsed = JSON.parse(body) as { error?: { type?: unknown } };
-    return parsed?.error?.type === "model_not_found";
+    const parsed = JSON.parse(body) as { error?: { type?: unknown; code?: unknown } };
+    return parsed?.error?.type === "model_not_found" || parsed?.error?.code === "model_not_found";
   } catch {
     return false;
   }

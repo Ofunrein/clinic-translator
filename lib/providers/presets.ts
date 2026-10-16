@@ -11,18 +11,18 @@ const DEFAULT_TTS = {
 
 const FAST: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
-  translate: { provider: "groq", model: "llama-3.1-8b-instant" },
+  translate: { provider: "groq", model: "openai/gpt-oss-20b" },
   tts: DEFAULT_TTS,
-  suggest: { provider: "groq", model: "llama-3.1-8b-instant" },
+  suggest: { provider: "groq", model: "openai/gpt-oss-20b" },
   latencyMode: "fast",
   realtimeMode: "text-middleman",
 };
 
 const BALANCED: ProviderConfig = {
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
-  translate: { provider: "groq", model: "llama-3.3-70b-versatile" },
+  translate: { provider: "groq", model: "openai/gpt-oss-120b" },
   tts: DEFAULT_TTS,
-  suggest: { provider: "groq", model: "llama-3.3-70b-versatile" },
+  suggest: { provider: "groq", model: "openai/gpt-oss-120b" },
   latencyMode: "balanced",
   realtimeMode: "text-middleman",
 };
