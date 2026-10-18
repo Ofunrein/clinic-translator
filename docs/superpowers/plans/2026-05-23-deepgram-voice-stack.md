@@ -37,13 +37,13 @@ Replace the Deepgram and OpenAI sections with:
 
 ```bash
 # Deepgram (STT Nova-3 + TTS Aura-2 — one key for both)
-DEEPGRAM_API_KEY=
+DEEPGRAM_API_KEY="" # Configure locally; never commit credentials.
 
 # OpenAI (dev translate/suggest only; optional if using Bedrock)
-OPENAI_API_KEY=
+OPENAI_API_KEY="" # Configure locally; never commit credentials.
 
 # Google Cloud TTS (optional fallback — not used by default presets)
-GOOGLE_APPLICATION_CREDENTIALS=
+GOOGLE_APPLICATION_CREDENTIALS="" # Configure locally; never commit credentials.
 GCP_TTS_VOICE=es-US-Chirp3-HD-Achernar
 ```
 
